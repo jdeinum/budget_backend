@@ -37,18 +37,18 @@ mod tests {
 
     impl Arbitrary for SamplePayload {
         fn arbitrary(g: &mut Gen) -> Self {
-            SamplePayload {
+            Self {
                 id: u64::arbitrary(g),
                 label: String::arbitrary(g),
             }
         }
     }
 
+    // By-value is required: cast to `fn(SamplePayload) -> bool` below,
+    // matching `quickcheck::Testable`'s signature for a property fn.
+    #[allow(clippy::needless_pass_by_value)]
     fn prop_encode_then_decode_round_trips(payload: SamplePayload) -> bool {
-        match decode::<SamplePayload>(&encode(&payload)) {
-            Ok(decoded) => decoded == payload,
-            Err(_) => false,
-        }
+        decode::<SamplePayload>(&encode(&payload)).is_ok_and(|decoded| decoded == payload)
     }
 
     #[test]

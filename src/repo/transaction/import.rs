@@ -54,7 +54,7 @@ pub async fn import_transactions(
             crate::repo::merchant::upsert_merchant(pool, now, &row.merchant, None).await?;
 
         let newly_inserted: Option<(DbUuid,)> = sqlx::query_as(
-            r#"
+            r"
             INSERT INTO transactions (
                 id, item_id, source, plaid_transaction_id, occurrence,
                 account_id, amount, date, name, merchant_name, merchant_id, created_at, updated_at
@@ -63,7 +63,7 @@ pub async fn import_transactions(
             ON CONFLICT (account_id, date, amount, name, occurrence) WHERE source != 'plaid'
                 DO NOTHING
             RETURNING id
-            "#,
+            ",
         )
         .bind(DbUuid::from(Uuid::new_v4()))
         .bind(source)

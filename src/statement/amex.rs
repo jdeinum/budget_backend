@@ -59,8 +59,7 @@ impl super::StatementImporter for AmexImporter {
             let merchant = row
                 .merchant
                 .as_deref()
-                .map(normalize_description)
-                .unwrap_or_else(|| description.clone());
+                .map_or_else(|| description.clone(), normalize_description);
             out.push(ParsedTransaction {
                 date,
                 amount,

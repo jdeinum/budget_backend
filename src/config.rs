@@ -25,10 +25,11 @@ pub enum PlaidEnv {
 }
 
 impl PlaidEnv {
-    pub fn base_url(self) -> &'static str {
+    #[must_use]
+    pub const fn base_url(self) -> &'static str {
         match self {
-            PlaidEnv::Sandbox => "https://sandbox.plaid.com",
-            PlaidEnv::Production => "https://production.plaid.com",
+            Self::Sandbox => "https://sandbox.plaid.com",
+            Self::Production => "https://production.plaid.com",
         }
     }
 }
@@ -56,6 +57,10 @@ impl AppConfig {
     /// `config/{RUN_MODE}.toml` override, and environment variables prefixed
     /// with `BUDGET` (double underscore separated, e.g. `BUDGET__PLAID__SECRET`
     /// sets `plaid.secret`). Env vars take precedence over files.
+    ///
+    /// # Errors
+    /// Returns an error if a config file is malformed or a required field is
+    /// missing/mistyped after merging all sources.
     pub fn load() -> Result<Self, config::ConfigError> {
         let run_mode = std::env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
 

@@ -25,8 +25,8 @@ pub struct CreateRuleRequest {
     pub target_account_id: Option<String>,
 }
 
-fn non_empty(value: &Option<String>) -> bool {
-    value.as_deref().is_some_and(|s| !s.trim().is_empty())
+fn non_empty(value: Option<&str>) -> bool {
+    value.is_some_and(|s| !s.trim().is_empty())
 }
 
 pub async fn create_transaction_rule(
@@ -35,28 +35,30 @@ pub async fn create_transaction_rule(
 ) -> AppResult<Json<TransactionRule>> {
     match req.kind {
         RuleKind::MerchantContains => {
-            if !non_empty(&req.pattern) {
+            if !non_empty(req.pattern.as_deref()) {
                 return Err(AppError::BadRequest(
                     "merchant_contains rules require a non-empty pattern".into(),
                 ));
             }
         }
         RuleKind::Tag => {
-            if !non_empty(&req.tag_name) || !non_empty(&req.tag_value) {
+            if !non_empty(req.tag_name.as_deref()) || !non_empty(req.tag_value.as_deref()) {
                 return Err(AppError::BadRequest(
                     "tag rules require both tag_name and tag_value".into(),
                 ));
             }
         }
         RuleKind::Account => {
-            if !non_empty(&req.account_id) {
+            if !non_empty(req.account_id.as_deref()) {
                 return Err(AppError::BadRequest(
                     "account rules require a non-empty account_id".into(),
                 ));
             }
         }
         RuleKind::Transfer => {
-            if !non_empty(&req.source_account_id) || !non_empty(&req.target_account_id) {
+            if !non_empty(req.source_account_id.as_deref())
+                || !non_empty(req.target_account_id.as_deref())
+            {
                 return Err(AppError::BadRequest(
                     "transfer rules require both source_account_id and target_account_id".into(),
                 ));

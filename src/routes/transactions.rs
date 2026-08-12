@@ -16,7 +16,7 @@ use crate::routes::tags::AttachTagRequest;
 use crate::state::AppState;
 use crate::utils::cursor;
 
-fn default_limit() -> i64 {
+const fn default_limit() -> i64 {
     50
 }
 

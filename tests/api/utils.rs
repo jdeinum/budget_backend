@@ -24,7 +24,7 @@ pub struct TestApp {
 }
 
 /// Builds and starts the real app (same `budget::build` main.rs uses) against
-/// a throwaway SQLite file and an OS-assigned port, and returns an HTTP
+/// a throwaway `SQLite` file and an OS-assigned port, and returns an HTTP
 /// client pointed at it.
 pub async fn spawn_app() -> anyhow::Result<TestApp> {
     spawn_app_with(|_| {}).await

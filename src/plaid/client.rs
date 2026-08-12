@@ -4,7 +4,12 @@ use serde_json::Value;
 use crate::config::PlaidField;
 use crate::error::AppError;
 
-use super::models::*;
+use super::models::{
+    ItemRemoveRequest, ItemRemoveResponse, LinkTokenCreateRequest, LinkTokenCreateResponse,
+    LinkTokenUser, PublicTokenExchangeRequest, PublicTokenExchangeResponse,
+    SandboxPublicTokenCreateRequest, SandboxPublicTokenCreateResponse, TransactionsSyncRequest,
+    TransactionsSyncResponse,
+};
 
 /// Thin wrapper around the Plaid REST API. `client_id`/`secret` are injected
 /// into every request body, matching Plaid's body-auth convention (as opposed

@@ -49,14 +49,14 @@ pub async fn upsert_account(
     name: &str,
 ) -> sqlx::Result<Account> {
     sqlx::query_as::<_, Account>(
-        r#"
+        r"
         INSERT INTO accounts (id, item_id, name, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?4, ?4)
         ON CONFLICT (id) DO UPDATE SET
             name = CASE WHEN accounts.name = accounts.id THEN excluded.name ELSE accounts.name END,
             updated_at = excluded.updated_at
         RETURNING *
-        "#,
+        ",
     )
     .bind(account_id)
     .bind(DbUuid::from(item_id))
@@ -79,11 +79,11 @@ pub async fn create_manual_account(
     name: &str,
 ) -> sqlx::Result<Account> {
     sqlx::query_as::<_, Account>(
-        r#"
+        r"
         INSERT INTO accounts (id, item_id, source, name, created_at, updated_at)
         VALUES (?1, NULL, ?2, ?3, ?4, ?4)
         RETURNING *
-        "#,
+        ",
     )
     .bind(Uuid::new_v4().to_string())
     .bind(source)

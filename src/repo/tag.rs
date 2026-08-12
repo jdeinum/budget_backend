@@ -15,7 +15,7 @@ pub struct Tag {
 
 /// A tag's `(name, value)` as returned alongside a tagged subject; distinct
 /// from [`Tag`] only in that it omits the tag's own `id`.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Serialize)]
 pub struct TagValue {
     pub name: String,
     pub value: String,
@@ -29,12 +29,12 @@ pub async fn list_all(pool: &SqlitePool) -> sqlx::Result<Vec<Tag>> {
 
 pub async fn get_or_create_tag(pool: &SqlitePool, name: &str, value: &str) -> sqlx::Result<Tag> {
     sqlx::query_as::<_, Tag>(
-        r#"
+        r"
         INSERT INTO tags (id, name, value)
         VALUES (?1, ?2, ?3)
         ON CONFLICT (name, value) DO UPDATE SET name = excluded.name
         RETURNING *
-        "#,
+        ",
     )
     .bind(DbUuid::from(Uuid::new_v4()))
     .bind(name)
@@ -55,11 +55,11 @@ pub async fn tag_transaction(
     let tag = get_or_create_tag(pool, name, value).await?;
 
     sqlx::query(
-        r#"
+        r"
         DELETE FROM transaction_tags
         WHERE transaction_id = ?1
           AND tag_id IN (SELECT id FROM tags WHERE name = ?2 AND id <> ?3)
-        "#,
+        ",
     )
     .bind(DbUuid::from(transaction_id))
     .bind(name)
@@ -85,11 +85,11 @@ pub async fn untag_transaction(
     name: &str,
 ) -> sqlx::Result<()> {
     sqlx::query(
-        r#"
+        r"
         DELETE FROM transaction_tags
         WHERE transaction_id = ?1
           AND tag_id IN (SELECT id FROM tags WHERE name = ?2)
-        "#,
+        ",
     )
     .bind(DbUuid::from(transaction_id))
     .bind(name)
@@ -109,11 +109,11 @@ pub async fn tag_merchant(
     let tag = get_or_create_tag(pool, name, value).await?;
 
     sqlx::query(
-        r#"
+        r"
         DELETE FROM merchant_tags
         WHERE merchant_id = ?1
           AND tag_id IN (SELECT id FROM tags WHERE name = ?2 AND id <> ?3)
-        "#,
+        ",
     )
     .bind(DbUuid::from(merchant_id))
     .bind(name)
@@ -135,11 +135,11 @@ pub async fn tag_merchant(
 /// Removes whatever tag is set under `name` on a merchant, if any.
 pub async fn untag_merchant(pool: &SqlitePool, merchant_id: Uuid, name: &str) -> sqlx::Result<()> {
     sqlx::query(
-        r#"
+        r"
         DELETE FROM merchant_tags
         WHERE merchant_id = ?1
           AND tag_id IN (SELECT id FROM tags WHERE name = ?2)
-        "#,
+        ",
     )
     .bind(DbUuid::from(merchant_id))
     .bind(name)
@@ -159,11 +159,11 @@ pub async fn tag_account(
     let tag = get_or_create_tag(pool, name, value).await?;
 
     sqlx::query(
-        r#"
+        r"
         DELETE FROM account_tags
         WHERE account_id = ?1
           AND tag_id IN (SELECT id FROM tags WHERE name = ?2 AND id <> ?3)
-        "#,
+        ",
     )
     .bind(account_id)
     .bind(name)
@@ -185,11 +185,11 @@ pub async fn tag_account(
 /// Removes whatever tag is set under `name` on an account, if any.
 pub async fn untag_account(pool: &SqlitePool, account_id: &str, name: &str) -> sqlx::Result<()> {
     sqlx::query(
-        r#"
+        r"
         DELETE FROM account_tags
         WHERE account_id = ?1
           AND tag_id IN (SELECT id FROM tags WHERE name = ?2)
-        "#,
+        ",
     )
     .bind(account_id)
     .bind(name)
@@ -204,13 +204,13 @@ pub async fn list_for_transaction(
     transaction_id: Uuid,
 ) -> sqlx::Result<Vec<TagValue>> {
     sqlx::query_as::<_, TagValue>(
-        r#"
+        r"
         SELECT tag.name, tag.value
         FROM transaction_tags tt
         JOIN tags tag ON tag.id = tt.tag_id
         WHERE tt.transaction_id = ?1
         ORDER BY tag.name
-        "#,
+        ",
     )
     .bind(DbUuid::from(transaction_id))
     .fetch_all(pool)
@@ -252,13 +252,13 @@ pub async fn list_for_merchant(
     merchant_id: Uuid,
 ) -> sqlx::Result<Vec<TagValue>> {
     sqlx::query_as::<_, TagValue>(
-        r#"
+        r"
         SELECT tag.name, tag.value
         FROM merchant_tags mt
         JOIN tags tag ON tag.id = mt.tag_id
         WHERE mt.merchant_id = ?1
         ORDER BY tag.name
-        "#,
+        ",
     )
     .bind(DbUuid::from(merchant_id))
     .fetch_all(pool)
@@ -320,13 +320,13 @@ pub fn merge_layers(layers: &[&[TagValue]]) -> Vec<TagValue> {
 /// A single account's tags — for the tag-attach endpoint's response.
 pub async fn list_for_account(pool: &SqlitePool, account_id: &str) -> sqlx::Result<Vec<TagValue>> {
     sqlx::query_as::<_, TagValue>(
-        r#"
+        r"
         SELECT tag.name, tag.value
         FROM account_tags act
         JOIN tags tag ON tag.id = act.tag_id
         WHERE act.account_id = ?1
         ORDER BY tag.name
-        "#,
+        ",
     )
     .bind(account_id)
     .fetch_all(pool)
@@ -370,7 +370,7 @@ mod tests {
 
     impl Arbitrary for TagValue {
         fn arbitrary(g: &mut Gen) -> Self {
-            TagValue {
+            Self {
                 name: String::arbitrary(g),
                 value: String::arbitrary(g),
             }
@@ -416,6 +416,9 @@ mod tests {
     /// The doc comment promises the result is "sorted by name" with one
     /// entry per name — for arbitrary layers, not just the handful of
     /// examples above.
+    // By-value is required here: this is cast to `fn(Vec<Vec<TagValue>>) -> bool`
+    // below, matching `quickcheck::Testable`'s signature for a property fn.
+    #[allow(clippy::needless_pass_by_value)]
     fn prop_merged_tags_are_sorted_by_name_with_no_duplicates(layers: Vec<Vec<TagValue>>) -> bool {
         let layer_refs: Vec<&[TagValue]> = layers.iter().map(Vec::as_slice).collect();
         let merged = merge_layers(&layer_refs);
@@ -441,6 +444,8 @@ mod tests {
     /// last across the flattened (layer, tag) sequence — "later layers
     /// win", and within a layer, a later tag wins over an earlier one
     /// under the same name (matches the repeated-`insert` implementation).
+    // By-value is required — see the sibling property above.
+    #[allow(clippy::needless_pass_by_value)]
     fn prop_a_merged_tags_value_is_the_last_occurrence_of_its_name(
         layers: Vec<Vec<TagValue>>,
     ) -> bool {

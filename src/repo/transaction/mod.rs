@@ -69,7 +69,7 @@ pub async fn upsert_transaction(
     tx: &PlaidTransaction,
 ) -> sqlx::Result<Uuid> {
     let (id,): (DbUuid,) = sqlx::query_as(
-        r#"
+        r"
         INSERT INTO transactions (
             id, item_id, plaid_transaction_id, account_id, amount,
             iso_currency_code, unofficial_currency_code, date, datetime,
@@ -90,7 +90,7 @@ pub async fn upsert_transaction(
             merchant_id = excluded.merchant_id,
             updated_at = excluded.updated_at
         RETURNING id
-        "#,
+        ",
     )
     .bind(DbUuid::from(Uuid::new_v4()))
     .bind(DbUuid::from(item_id))
@@ -150,7 +150,7 @@ pub async fn create_manual_transaction(
     };
 
     sqlx::query_as::<_, Transaction>(
-        r#"
+        r"
         INSERT INTO transactions (
             id, item_id, source, plaid_transaction_id, occurrence,
             account_id, amount, date, name, merchant_name, merchant_id, created_at, updated_at
@@ -165,7 +165,7 @@ pub async fn create_manual_transaction(
             ?2, ?4, ?3, ?5, ?5, ?6, ?7, ?7
         )
         RETURNING *
-        "#,
+        ",
     )
     .bind(DbUuid::from(Uuid::new_v4()))
     .bind(account_id)
@@ -294,6 +294,9 @@ mod tests {
         );
     }
 
+    // 42.5 round-trips exactly through SQLite's REAL with no arithmetic in
+    // between, so exact equality is the right check here.
+    #[allow(clippy::float_cmp)]
     #[sqlx::test]
     async fn creates_a_manual_transaction(pool: SqlitePool) {
         let account = account::create_manual_account(&pool, Utc::now(), Source::Neo, "Neo")

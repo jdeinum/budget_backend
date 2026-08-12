@@ -32,10 +32,10 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
-            AppError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
-            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            AppError::Plaid { .. } => (StatusCode::BAD_GATEWAY, self.to_string()),
-            AppError::Database(_) | AppError::Http(_) | AppError::Config(_) => {
+            Self::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            Self::BadRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            Self::Plaid { .. } => (StatusCode::BAD_GATEWAY, self.to_string()),
+            Self::Database(_) | Self::Http(_) | Self::Config(_) => {
                 tracing::error!(error = %self, "internal error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
             }

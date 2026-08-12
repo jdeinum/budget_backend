@@ -5,7 +5,7 @@ use wiremock::{Mock, Request, ResponseTemplate};
 
 use crate::utils::spawn_app;
 
-fn sync_page(cursor: &str, has_more: bool, added: Vec<serde_json::Value>) -> serde_json::Value {
+fn sync_page(cursor: &str, has_more: bool, added: &[serde_json::Value]) -> serde_json::Value {
     json!({
         "accounts": [{ "account_id": "acc_1", "name": "Plaid Checking" }],
         "added": added,
@@ -66,7 +66,7 @@ async fn create_item_exchanges_the_token_and_runs_an_initial_sync() -> anyhow::R
         .respond_with(ResponseTemplate::new(200).set_body_json(sync_page(
             "cursor_1",
             false,
-            vec![plaid_tx("tx_1", "Coffee Shop", 4.5)],
+            &[plaid_tx("tx_1", "Coffee Shop", 4.5)],
         )))
         .mount(&app.plaid_mock)
         .await;
@@ -141,7 +141,7 @@ async fn sync_item_pages_through_has_more_until_the_final_page() -> anyhow::Resu
         .respond_with(ResponseTemplate::new(200).set_body_json(sync_page(
             "cursor_page_2",
             true,
-            vec![plaid_tx("tx_1", "Coffee Shop", 4.5)],
+            &[plaid_tx("tx_1", "Coffee Shop", 4.5)],
         )))
         .mount(&app.plaid_mock)
         .await;
@@ -151,7 +151,7 @@ async fn sync_item_pages_through_has_more_until_the_final_page() -> anyhow::Resu
         .respond_with(ResponseTemplate::new(200).set_body_json(sync_page(
             "cursor_page_3",
             false,
-            vec![plaid_tx("tx_2", "Groceries", 30.0)],
+            &[plaid_tx("tx_2", "Groceries", 30.0)],
         )))
         .mount(&app.plaid_mock)
         .await;
@@ -207,11 +207,7 @@ async fn delete_item_revokes_on_plaid_then_removes_it_locally() -> anyhow::Resul
     mount_exchange(&app).await;
     Mock::given(method("POST"))
         .and(path("/transactions/sync"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(sync_page(
-            "cursor_1",
-            false,
-            vec![],
-        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(sync_page("cursor_1", false, &[])))
         .mount(&app.plaid_mock)
         .await;
 
@@ -261,11 +257,7 @@ async fn delete_item_still_succeeds_when_plaid_reports_item_not_found() -> anyho
     mount_exchange(&app).await;
     Mock::given(method("POST"))
         .and(path("/transactions/sync"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(sync_page(
-            "cursor_1",
-            false,
-            vec![],
-        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(sync_page("cursor_1", false, &[])))
         .mount(&app.plaid_mock)
         .await;
 

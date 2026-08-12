@@ -21,12 +21,12 @@ pub enum Source {
 
 impl Source {
     /// Human-readable name, for error messages and UI labels.
-    pub fn label(self) -> &'static str {
+    pub const fn label(self) -> &'static str {
         match self {
-            Source::Plaid => "Plaid",
-            Source::Neo => "Neo",
-            Source::Amex => "Amex",
-            Source::Manual => "Manual",
+            Self::Plaid => "Plaid",
+            Self::Neo => "Neo",
+            Self::Amex => "Amex",
+            Self::Manual => "Manual",
         }
     }
 }

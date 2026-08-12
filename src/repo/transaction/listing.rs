@@ -21,10 +21,10 @@ pub enum SortField {
 }
 
 impl SortField {
-    fn column(self) -> &'static str {
+    const fn column(self) -> &'static str {
         match self {
-            SortField::Date => "t.date",
-            SortField::Amount => "t.amount",
+            Self::Date => "t.date",
+            Self::Amount => "t.amount",
         }
     }
 }
@@ -37,19 +37,19 @@ pub enum SortDir {
 }
 
 impl SortDir {
-    fn sql(self) -> &'static str {
+    const fn sql(self) -> &'static str {
         match self {
-            SortDir::Asc => "ASC",
-            SortDir::Desc => "DESC",
+            Self::Asc => "ASC",
+            Self::Desc => "DESC",
         }
     }
 
     /// The row-comparison operator that yields "rows after this one" for
     /// this direction, per standard keyset-pagination.
-    fn keyset_op(self) -> &'static str {
+    const fn keyset_op(self) -> &'static str {
         match self {
-            SortDir::Asc => ">",
-            SortDir::Desc => "<",
+            Self::Asc => ">",
+            Self::Desc => "<",
         }
     }
 }
@@ -96,7 +96,10 @@ pub struct TransactionCursor {
 /// `false` (the normal case) excludes ignored transactions, `true` returns
 /// only ignored ones (used by the settings page's ignored-transactions
 /// review list). See [`crate::repo::transaction_rule::reevaluate_ignored`].
-#[allow(clippy::too_many_arguments)]
+// Already split as far as it reasonably goes — see `import.rs`/`mod.rs` for
+// the rest of what used to be one big `transaction.rs` — the remaining
+// length here is inherent to building one filtered/sorted/paginated query.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub async fn list_paginated(
     pool: &SqlitePool,
     start_date: Option<NaiveDate>,
@@ -110,6 +113,33 @@ pub async fn list_paginated(
     limit: i64,
     ignored_only: bool,
 ) -> sqlx::Result<(Vec<TransactionWithMerchant>, Option<TransactionCursor>)> {
+    // A transaction's *effective* value for `name` under the account < vendor
+    // < transaction hierarchy: its own tag if it has one, else its
+    // merchant's, else its account's — mirrors `tag::merge_layers`, just
+    // expressed as SQL so it can be pushed down into the WHERE clause instead
+    // of fetched and filtered after the fact.
+    fn push_effective_value(qb: &mut QueryBuilder<Sqlite>, name: &str) {
+        qb.push(
+            "COALESCE(\
+              (SELECT tag.value FROM transaction_tags tt JOIN tags tag ON tag.id = tt.tag_id \
+               WHERE tt.transaction_id = t.id AND tag.name = ",
+        )
+        .push_bind(name.to_string())
+        .push(
+            "), \
+              (SELECT tag.value FROM merchant_tags mt JOIN tags tag ON tag.id = mt.tag_id \
+               WHERE mt.merchant_id = t.merchant_id AND tag.name = ",
+        )
+        .push_bind(name.to_string())
+        .push(
+            "), \
+              (SELECT tag.value FROM account_tags act JOIN tags tag ON tag.id = act.tag_id \
+               WHERE act.account_id = t.account_id AND tag.name = ",
+        )
+        .push_bind(name.to_string())
+        .push("))");
+    }
+
     let column = sort_field.column();
 
     let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
@@ -149,32 +179,6 @@ pub async fn list_paginated(
         }
         qb.push(", ").push_bind(DbUuid::from(cursor.id)).push(")");
     }
-    // A transaction's *effective* value for `name` under the account < vendor
-    // < transaction hierarchy: its own tag if it has one, else its
-    // merchant's, else its account's — mirrors `tag::merge_layers`, just
-    // expressed as SQL so it can be pushed down into the WHERE clause instead
-    // of fetched and filtered after the fact.
-    fn push_effective_value(qb: &mut QueryBuilder<Sqlite>, name: &str) {
-        qb.push(
-            "COALESCE(\
-              (SELECT tag.value FROM transaction_tags tt JOIN tags tag ON tag.id = tt.tag_id \
-               WHERE tt.transaction_id = t.id AND tag.name = ",
-        )
-        .push_bind(name.to_string())
-        .push(
-            "), \
-              (SELECT tag.value FROM merchant_tags mt JOIN tags tag ON tag.id = mt.tag_id \
-               WHERE mt.merchant_id = t.merchant_id AND tag.name = ",
-        )
-        .push_bind(name.to_string())
-        .push(
-            "), \
-              (SELECT tag.value FROM account_tags act JOIN tags tag ON tag.id = act.tag_id \
-               WHERE act.account_id = t.account_id AND tag.name = ",
-        )
-        .push_bind(name.to_string())
-        .push("))");
-    }
 
     for (name, value) in tags {
         qb.push(" AND ");
@@ -199,6 +203,14 @@ pub async fn list_paginated(
 
     let mut rows: Vec<TransactionWithMerchant> = qb.build_query_as().fetch_all(pool).await?;
 
+    // `limit` is always a small positive value (callers clamp it, e.g. to
+    // MAX_LIMIT), and `rows.len()` is bounded by `limit + 1` via the query
+    // above, so these i64<->usize round trips can't wrap/truncate.
+    #[allow(
+        clippy::cast_possible_wrap,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
     let next_cursor = if rows.len() as i64 > limit {
         rows.truncate(limit as usize);
         rows.last().map(|t| TransactionCursor {
@@ -257,17 +269,12 @@ pub async fn list_paginated(
     for t in &mut rows {
         let account_tags = account_by_id
             .get(&t.account_id)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]);
+            .map_or(&[][..], Vec::as_slice);
         let merchant_tags = t
             .merchant_id
             .and_then(|id| merchant_by_id.get(&id))
-            .map(Vec::as_slice)
-            .unwrap_or(&[]);
-        let own_tags = own_by_transaction
-            .get(&t.id)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]);
+            .map_or(&[][..], Vec::as_slice);
+        let own_tags = own_by_transaction.get(&t.id).map_or(&[][..], Vec::as_slice);
         t.tags = tag::merge_layers(&[account_tags, merchant_tags, own_tags]);
     }
 
@@ -363,6 +370,10 @@ mod tests {
         );
     }
 
+    // Every amount here is a literal that round-trips exactly through
+    // SQLite's REAL (IEEE 754 double) with no arithmetic in between, so
+    // exact equality is the right check, not an epsilon comparison.
+    #[allow(clippy::float_cmp)]
     #[sqlx::test]
     async fn paginates_by_amount_asc_with_keyset_cursor(pool: SqlitePool) {
         let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)

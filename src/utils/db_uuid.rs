@@ -8,7 +8,7 @@ use sqlx::error::BoxDynError;
 use uuid::Uuid;
 
 /// A `Uuid` stored as `TEXT` (canonical `8-4-4-4-12` form) rather than sqlx's
-/// default `BLOB` mapping for SQLite — chosen so ids stay human-readable when
+/// default `BLOB` mapping for `SQLite` — chosen so ids stay human-readable when
 /// inspecting the database directly (sqlite3 CLI, Turso console).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
@@ -16,7 +16,7 @@ pub struct DbUuid(pub Uuid);
 
 impl From<Uuid> for DbUuid {
     fn from(id: Uuid) -> Self {
-        DbUuid(id)
+        Self(id)
     }
 }
 
@@ -62,6 +62,6 @@ impl<'q> sqlx::Encode<'q, Sqlite> for DbUuid {
 impl<'r> sqlx::Decode<'r, Sqlite> for DbUuid {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let s = <String as sqlx::Decode<'r, Sqlite>>::decode(value)?;
-        Ok(DbUuid(Uuid::parse_str(&s)?))
+        Ok(Self(Uuid::parse_str(&s)?))
     }
 }

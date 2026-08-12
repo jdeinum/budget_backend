@@ -34,11 +34,11 @@ pub async fn upsert_merchant(
     }
 }
 
-/// Reuses the row already keyed on this entity_id, else claims a pre-existing
-/// name-only row for it (learning its entity_id for the first time), else
+/// Reuses the row already keyed on this `entity_id`, else claims a pre-existing
+/// name-only row for it (learning its `entity_id` for the first time), else
 /// inserts fresh — tried in order inside one transaction.
 ///
-/// This can't be a single `ON CONFLICT` upsert (SQLite or Postgres): a
+/// This can't be a single `ON CONFLICT` upsert (`SQLite` or Postgres): a
 /// partial-index conflict target only fires when the row *being inserted*
 /// itself satisfies that index's predicate. Since the row here always has a
 /// non-null `entity_id`, it can never match `idx_merchants_name_no_entity`'s
@@ -66,11 +66,11 @@ async fn upsert_by_entity_id(
     }
 
     if let Some(m) = sqlx::query_as::<_, Merchant>(
-        r#"
+        r"
         UPDATE merchants SET entity_id = ?1, name = ?2, updated_at = ?3
         WHERE name = ?2 AND entity_id IS NULL
         RETURNING *
-        "#,
+        ",
     )
     .bind(entity_id)
     .bind(name)
@@ -101,12 +101,12 @@ async fn upsert_by_name(
     name: &str,
 ) -> sqlx::Result<Merchant> {
     sqlx::query_as::<_, Merchant>(
-        r#"
+        r"
         INSERT INTO merchants (id, name, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?3)
         ON CONFLICT (name) WHERE entity_id IS NULL DO UPDATE SET updated_at = excluded.updated_at
         RETURNING *
-        "#,
+        ",
     )
     .bind(DbUuid::from(Uuid::new_v4()))
     .bind(name)
@@ -148,6 +148,14 @@ pub async fn list_paginated(
 
     let mut merchants: Vec<Merchant> = qb.build_query_as().fetch_all(pool).await?;
 
+    // `limit` is always a small positive value (callers clamp it, e.g. to
+    // MAX_LIMIT), and `merchants.len()` is bounded by `limit + 1` via the
+    // query above, so these i64<->usize round trips can't wrap/truncate.
+    #[allow(
+        clippy::cast_possible_wrap,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
     let next_cursor = if merchants.len() as i64 > limit {
         merchants.truncate(limit as usize);
         merchants.last().map(|m| MerchantCursor {

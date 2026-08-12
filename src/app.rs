@@ -19,16 +19,23 @@ pub struct App {
 }
 
 impl App {
+    /// # Errors
+    /// Returns an error if the listener's local address can't be determined.
     pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
         self.listener.local_addr()
     }
 
+    /// # Errors
+    /// Returns an error if the server fails while serving requests.
     pub async fn run(self) -> anyhow::Result<()> {
         axum::serve(self.listener, self.router).await?;
         Ok(())
     }
 }
 
+/// # Errors
+/// Returns an error if the database can't be reached/migrated, or if the
+/// configured address can't be bound.
 pub async fn build(config: AppConfig) -> anyhow::Result<App> {
     if let Some(path) = config
         .database

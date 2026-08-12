@@ -22,6 +22,19 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uuid = { version = "1.24.0", features = ["v4", "serde"] }
 
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
+nursery = "deny"
+cargo = "deny"
+# Transitive-dependency version skew (base64, syn, sha2, ...) — out of our
+# control short of pinning every indirect dep; `cargo deny check` (see
+# deny.toml, run in CI) already covers dependency hygiene with a proper
+# skip-list mechanism for exactly this. `priority` is required so this
+# specific-lint entry actually overrides the `cargo = "deny"` group above —
+# without it cargo treats the two as equal-priority and keeps both.
+multiple_crate_versions = { level = "allow", priority = 1 }
+
 [dev-dependencies]
 tempfile = "3.14"
 # Adds RequestBuilder::query, used by the tests/ HTTP client — prod code

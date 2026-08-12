@@ -93,6 +93,9 @@ mod tests {
     /// Normalizing an already-normalized string is a no-op — running it
     /// twice can never move further away from a fixed point than running it
     /// once.
+    // By-value is required: cast to `fn(String) -> bool` below, matching
+    // `quickcheck::Testable`'s signature for a property fn.
+    #[allow(clippy::needless_pass_by_value)]
     fn prop_normalize_description_is_idempotent(raw: String) -> bool {
         let once = normalize_description(&raw);
         let twice = normalize_description(&once);
@@ -111,6 +114,8 @@ mod tests {
     /// of more than one space and never starts/ends with whitespace (unless
     /// it's empty) — the property behind "collapses padding" that the
     /// example test above only spot-checks one input for.
+    // By-value is required — see the sibling property above.
+    #[allow(clippy::needless_pass_by_value)]
     fn prop_normalize_description_has_no_stray_whitespace(raw: String) -> bool {
         let out = normalize_description(&raw);
         !out.contains("  ") && out == out.trim()

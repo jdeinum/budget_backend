@@ -22,12 +22,12 @@ pub enum RuleKind {
 }
 
 impl RuleKind {
-    fn as_str(self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
-            RuleKind::MerchantContains => "merchant_contains",
-            RuleKind::Tag => "tag",
-            RuleKind::Account => "account",
-            RuleKind::Transfer => "transfer",
+            Self::MerchantContains => "merchant_contains",
+            Self::Tag => "tag",
+            Self::Account => "account",
+            Self::Transfer => "transfer",
         }
     }
 }
@@ -55,10 +55,10 @@ impl<'r> sqlx::Decode<'r, Sqlite> for RuleKind {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let s = <String as sqlx::Decode<'r, Sqlite>>::decode(value)?;
         match s.as_str() {
-            "merchant_contains" => Ok(RuleKind::MerchantContains),
-            "tag" => Ok(RuleKind::Tag),
-            "account" => Ok(RuleKind::Account),
-            "transfer" => Ok(RuleKind::Transfer),
+            "merchant_contains" => Ok(Self::MerchantContains),
+            "tag" => Ok(Self::Tag),
+            "account" => Ok(Self::Account),
+            "transfer" => Ok(Self::Transfer),
             other => Err(format!("invalid rule kind: {other:?}").into()),
         }
     }
@@ -90,14 +90,14 @@ pub async fn create_rule(
     target_account_id: Option<&str>,
 ) -> sqlx::Result<TransactionRule> {
     let rule = sqlx::query_as::<_, TransactionRule>(
-        r#"
+        r"
         INSERT INTO transaction_rules (
             id, kind, pattern, tag_name, tag_value, account_id,
             source_account_id, target_account_id, created_at
         )
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
         RETURNING *
-        "#,
+        ",
     )
     .bind(DbUuid::from(Uuid::new_v4()))
     .bind(kind)
@@ -149,7 +149,7 @@ pub async fn reevaluate_ignored(pool: &SqlitePool) -> sqlx::Result<()> {
         .await?;
 
     sqlx::query(
-        r#"
+        r"
         UPDATE transactions SET ignored = 1 WHERE id IN (
             SELECT t.id FROM transactions t JOIN transaction_rules r ON (
                 (r.kind = 'merchant_contains' AND (
@@ -194,7 +194,7 @@ pub async fn reevaluate_ignored(pool: &SqlitePool) -> sqlx::Result<()> {
                 ))
             )
         )
-        "#,
+        ",
     )
     .execute(&mut *tx)
     .await?;

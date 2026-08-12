@@ -24,7 +24,7 @@ pub async fn upsert_item(
     institution_id: Option<&str>,
 ) -> sqlx::Result<Item> {
     sqlx::query_as::<_, Item>(
-        r#"
+        r"
         INSERT INTO items (id, plaid_item_id, access_token, institution_id, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?4, ?5, ?5)
         ON CONFLICT (plaid_item_id) DO UPDATE SET
@@ -32,7 +32,7 @@ pub async fn upsert_item(
             institution_id = excluded.institution_id,
             updated_at = excluded.updated_at
         RETURNING *
-        "#,
+        ",
     )
     .bind(DbUuid::from(Uuid::new_v4()))
     .bind(plaid_item_id)
