@@ -23,7 +23,7 @@ RUN cargo build --release --frozen
 
 # ca-certificates: reqwest/rustls reads the system trust store (via
 # rustls-native-certs) to verify Plaid's TLS certs at runtime.
-FROM alpine:3.21 AS runtime
+FROM alpine:3.24 AS runtime
 RUN apk add --no-cache ca-certificates && \
     addgroup -S app && adduser -S app -G app
 
