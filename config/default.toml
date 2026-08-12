@@ -1,0 +1,13 @@
+[server]
+host = "0.0.0.0"
+port = 3000
+
+[database]
+url = "sqlite://data/budget.db"
+
+[plaid]
+# client_id and secret are secrets: set them via the BUDGET__PLAID__CLIENT_ID
+# and BUDGET__PLAID__SECRET environment variables (see .env.example), not here.
+client_id = ""
+secret = ""
+env = "sandbox"
