@@ -8,6 +8,9 @@ Nil is a personal finance tracker I built to replace [YNAB](https://www.ynab.com
 without paying 15$ per month. Currently I just host this on my server at home,
 but I am planning to deploy this at some point so others could use it. 
 
+This is the backend — the SvelteKit frontend lives in a separate repo:
+[budget_frontend](https://github.com/jdeinum/budget_frontend).
+
 ## Features
 
 Roughly in the order data flows through the app — in, organized, then analyzed:

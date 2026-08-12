@@ -97,7 +97,8 @@ pub async fn sync_item_transactions(
 /// Upserts the transaction's merchant by name.
 ///
 /// Plaid's `personal_finance_category` is intentionally ignored here — we
-/// don't tag transactions or track merchant category history from it.
+/// don't tag transactions or track merchant category history from it. I found that the auto
+/// assigned catagories just conflicted with the ones I had set
 async fn resolve_merchant(
     pool: &SqlitePool,
     now: DateTime<Utc>,
