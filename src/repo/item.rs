@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::db_uuid::DbUuid;
+use crate::utils::db_uuid::DbUuid;
 
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct Item {
@@ -18,11 +18,11 @@ pub struct Item {
 
 pub async fn upsert_item(
     pool: &SqlitePool,
+    now: DateTime<Utc>,
     plaid_item_id: &str,
     access_token: &str,
     institution_id: Option<&str>,
 ) -> sqlx::Result<Item> {
-    let now = Utc::now();
     sqlx::query_as::<_, Item>(
         r#"
         INSERT INTO items (id, plaid_item_id, access_token, institution_id, created_at, updated_at)
@@ -67,10 +67,15 @@ pub async fn delete_item(pool: &SqlitePool, id: Uuid) -> sqlx::Result<bool> {
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn update_cursor(pool: &SqlitePool, id: Uuid, cursor: &str) -> sqlx::Result<()> {
+pub async fn update_cursor(
+    pool: &SqlitePool,
+    now: DateTime<Utc>,
+    id: Uuid,
+    cursor: &str,
+) -> sqlx::Result<()> {
     sqlx::query("UPDATE items SET cursor = ?1, updated_at = ?2 WHERE id = ?3")
         .bind(cursor)
-        .bind(Utc::now())
+        .bind(now)
         .bind(DbUuid::from(id))
         .execute(pool)
         .await?;
@@ -83,25 +88,13 @@ mod tests {
     use crate::plaid::models::PlaidTransaction;
     use crate::repo::{account, tag, transaction};
     use chrono::NaiveDate;
-    use sqlx::sqlite::SqlitePoolOptions;
 
-    async fn pool() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
+    #[sqlx::test]
+    async fn deleting_an_item_cascades_to_its_accounts_transactions_and_tags(pool: SqlitePool) {
+        let item = upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        sqlx::migrate!().run(&pool).await.unwrap();
-        pool
-    }
-
-    #[tokio::test]
-    async fn deleting_an_item_cascades_to_its_accounts_transactions_and_tags() {
-        let pool = pool().await;
-        let item = upsert_item(&pool, "plaid_item_1", "access-token", None)
-            .await
-            .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+        account::upsert_account(&pool, Utc::now(), "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
 
@@ -119,9 +112,10 @@ mod tests {
             pending: false,
             payment_channel: Some("online".to_string()),
         };
-        let transaction_id = transaction::upsert_transaction(&pool, item.id.into(), None, &tx)
-            .await
-            .unwrap();
+        let transaction_id =
+            transaction::upsert_transaction(&pool, Utc::now(), item.id.into(), None, &tx)
+                .await
+                .unwrap();
         tag::tag_transaction(&pool, transaction_id, "category", "TEST")
             .await
             .unwrap();
@@ -147,9 +141,8 @@ mod tests {
         assert_eq!(transaction_tags, 0);
     }
 
-    #[tokio::test]
-    async fn deleting_a_nonexistent_item_returns_false() {
-        let pool = pool().await;
+    #[sqlx::test]
+    async fn deleting_a_nonexistent_item_returns_false(pool: SqlitePool) {
         let existed = delete_item(&pool, Uuid::new_v4()).await.unwrap();
         assert!(!existed);
     }

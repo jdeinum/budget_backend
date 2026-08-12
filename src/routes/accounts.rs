@@ -9,9 +9,9 @@ use crate::repo::tag::{self, TagValue};
 use crate::repo::transaction;
 use crate::repo::transaction_rule;
 use crate::routes::tags::AttachTagRequest;
-use crate::source::Source;
 use crate::state::AppState;
 use crate::statement::{self, StatementImporter};
+use crate::utils::source::Source;
 
 pub async fn list_accounts(State(state): State<AppState>) -> AppResult<Json<Vec<Account>>> {
     Ok(Json(account::list_accounts(&state.pool).await?))
@@ -41,7 +41,9 @@ pub async fn create_account(
             )));
         }
     }
-    let account = account::create_manual_account(&state.pool, req.source, &req.name).await?;
+    let account =
+        account::create_manual_account(&state.pool, state.clock.now(), req.source, &req.name)
+            .await?;
     Ok(Json(account))
 }
 
@@ -106,7 +108,7 @@ async fn import_one_file(
     }
 
     let rows = importer.parse(bytes).map_err(|err| err.to_string())?;
-    transaction::import_transactions(&state.pool, account_id, source, &rows)
+    transaction::import_transactions(&state.pool, state.clock.now(), account_id, source, &rows)
         .await
         .map_err(|err| err.to_string())
 }
@@ -190,7 +192,7 @@ pub async fn rename_account(
     Path(id): Path<String>,
     Json(req): Json<RenameAccountRequest>,
 ) -> AppResult<Json<Account>> {
-    let account = account::rename_account(&state.pool, &id, &req.name)
+    let account = account::rename_account(&state.pool, state.clock.now(), &id, &req.name)
         .await?
         .ok_or(AppError::NotFound)?;
     Ok(Json(account))

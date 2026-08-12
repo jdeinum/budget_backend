@@ -88,28 +88,15 @@ mod tests {
 01 Aug 2026,01 Aug 2026,A LITTLE BIT OF EVERYTH Athabasca,6.30\n\
 31 Jul 2026,01 Aug 2026,FGP40019 CLYDE CORNER F WESTLOCK COUN,70.59\n";
 
+    // Canonical date is "Date Processed", not "Date" — the two differ on
+    // several rows in this sample (e.g. row 2: 04 Aug vs 06 Aug processed),
+    // and the last row crosses a month boundary (31 Jul processed 01 Aug) —
+    // both visible in the snapshot below.
     #[test]
     fn parses_the_real_sample_export() {
         let importer = AmexImporter;
         let rows = importer.parse(SAMPLE.as_bytes()).unwrap();
-        assert_eq!(rows.len(), 8);
-
-        // Canonical date is "Date Processed", not "Date" — the two differ
-        // on several rows in this sample (e.g. row 2: 04 Aug vs 06 Aug).
-        assert_eq!(
-            rows[0],
-            ParsedTransaction {
-                date: NaiveDate::from_ymd_opt(2026, 8, 7).unwrap(),
-                amount: 15.99,
-                description: "MEMBERSHIP FEE INSTALLMENT".to_string(),
-                merchant: "MEMBERSHIP FEE INSTALLMENT".to_string(),
-            }
-        );
-        assert_eq!(rows[1].date, NaiveDate::from_ymd_opt(2026, 8, 6).unwrap());
-        assert_eq!(rows[1].description, "MCDONALD'S #6261 WETASKIWIN");
-
-        // Last row crosses a month boundary (31 Jul processed 01 Aug).
-        assert_eq!(rows[7].date, NaiveDate::from_ymd_opt(2026, 8, 1).unwrap());
+        insta::assert_debug_snapshot!(rows);
     }
 
     #[test]
@@ -151,21 +138,13 @@ Date,Date Processed,Description,Amount,Foreign Spend Amount,Commission,Exchange 
         assert!(AmexImporter.detect(reader.headers().unwrap()));
     }
 
+    // Row 2 (index 2) is a credit/payment, already negative — same sign
+    // convention as a purchase. The multi-line quoted Address/City fields
+    // don't leak into the columns this importer actually reads. Both are
+    // visible in the snapshot below.
     #[test]
     fn parses_a_richer_export_and_extracts_its_merchant_column() {
         let rows = AmexImporter.parse(RICH_SAMPLE.as_bytes()).unwrap();
-        assert_eq!(rows.len(), 4);
-
-        assert_eq!(rows[0].merchant, "MEMBERSHIP FEE INSTALLMENT");
-        assert_eq!(rows[0].amount, 15.99);
-
-        // A credit/payment is already negative, same convention as before.
-        assert_eq!(rows[2].description, "PAYMENT RECEIVED - THANK YOU");
-        assert_eq!(rows[2].amount, -1500.00);
-
-        // The multi-line quoted Address/City fields don't leak into the
-        // columns this importer actually reads.
-        assert_eq!(rows[1].description, "FRIENDS CAFE YYC 00-080 CALGARY");
-        assert_eq!(rows[1].date, NaiveDate::from_ymd_opt(2026, 7, 7).unwrap());
+        insta::assert_debug_snapshot!(rows);
     }
 }

@@ -2,7 +2,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::db_uuid::DbUuid;
+use crate::utils::db_uuid::DbUuid;
 
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct MerchantCategory {

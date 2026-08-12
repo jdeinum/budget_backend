@@ -89,4 +89,38 @@ mod tests {
             "REAL CDN SUPERSTORE #1 CALGARY CAN"
         );
     }
+
+    /// Normalizing an already-normalized string is a no-op — running it
+    /// twice can never move further away from a fixed point than running it
+    /// once.
+    fn prop_normalize_description_is_idempotent(raw: String) -> bool {
+        let once = normalize_description(&raw);
+        let twice = normalize_description(&once);
+        once == twice
+    }
+
+    #[test]
+    fn normalize_description_is_idempotent() {
+        crate::utils::proptest_support::run(
+            "normalize_description_is_idempotent",
+            prop_normalize_description_is_idempotent as fn(String) -> bool,
+        );
+    }
+
+    /// Whatever whitespace `raw` used internally, the result never has a run
+    /// of more than one space and never starts/ends with whitespace (unless
+    /// it's empty) — the property behind "collapses padding" that the
+    /// example test above only spot-checks one input for.
+    fn prop_normalize_description_has_no_stray_whitespace(raw: String) -> bool {
+        let out = normalize_description(&raw);
+        !out.contains("  ") && out == out.trim()
+    }
+
+    #[test]
+    fn normalize_description_has_no_stray_whitespace() {
+        crate::utils::proptest_support::run(
+            "normalize_description_has_no_stray_whitespace",
+            prop_normalize_description_has_no_stray_whitespace as fn(String) -> bool,
+        );
+    }
 }

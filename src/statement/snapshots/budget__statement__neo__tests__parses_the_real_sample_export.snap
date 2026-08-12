@@ -1,0 +1,54 @@
+---
+source: src/statement/neo.rs
+expression: rows
+---
+[
+    ParsedTransaction {
+        date: 2026-08-11,
+        amount: 26.35,
+        description: "REAL CDN LIQUOR STR 16 CALGARY CAN",
+        merchant: "REAL CDN LIQUOR STR 16 CALGARY CAN",
+    },
+    ParsedTransaction {
+        date: 2026-08-11,
+        amount: 37.04,
+        description: "REAL CDN SUPERSTORE #1 CALGARY CAN",
+        merchant: "REAL CDN SUPERSTORE #1 CALGARY CAN",
+    },
+    ParsedTransaction {
+        date: 2026-08-10,
+        amount: 69.25,
+        description: "CANCO PETROLEUM #219 E EDMONTON CAN",
+        merchant: "CANCO PETROLEUM #219 E EDMONTON CAN",
+    },
+    ParsedTransaction {
+        date: 2026-08-09,
+        amount: 13.2,
+        description: "REAL CANADIAN LIQUOR # EDMONTON CAN",
+        merchant: "REAL CANADIAN LIQUOR # EDMONTON CAN",
+    },
+    ParsedTransaction {
+        date: 2026-08-09,
+        amount: 22.67,
+        description: "REAL CDN SUPERSTORE #1 EDMONTON CAN",
+        merchant: "REAL CDN SUPERSTORE #1 EDMONTON CAN",
+    },
+    ParsedTransaction {
+        date: 2026-08-09,
+        amount: 20.99,
+        description: "VALUE VILLAGE # 2085 EDMONTON CAN",
+        merchant: "VALUE VILLAGE # 2085 EDMONTON CAN",
+    },
+    ParsedTransaction {
+        date: 2026-08-09,
+        amount: 35.97,
+        description: "TELUS MOBILITY EDMONTON CAN",
+        merchant: "TELUS MOBILITY EDMONTON CAN",
+    },
+    ParsedTransaction {
+        date: 2026-08-08,
+        amount: 149.0,
+        description: "Annual Card Fee",
+        merchant: "Annual Card Fee",
+    },
+]

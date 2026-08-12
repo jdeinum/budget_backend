@@ -27,3 +27,6 @@ tempfile = "3.14"
 # Adds RequestBuilder::query, used by the tests/ HTTP client — prod code
 # never needs it, so it's kept out of the main reqwest dependency's features.
 reqwest = { version = "0.13.4", default-features = false, features = ["query"] }
+wiremock = "0.6"
+quickcheck = "1"
+insta = "1"

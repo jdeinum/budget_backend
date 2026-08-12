@@ -89,10 +89,18 @@ pub async fn create_item(
 ) -> AppResult<Json<CreateItemResponse>> {
     let exchange = state.plaid.exchange_public_token(&req.public_token).await?;
 
-    let saved =
-        item::upsert_item(&state.pool, &exchange.item_id, &exchange.access_token, None).await?;
+    let saved = item::upsert_item(
+        &state.pool,
+        state.clock.now(),
+        &exchange.item_id,
+        &exchange.access_token,
+        None,
+    )
+    .await?;
 
-    let summary = sync::sync_item_transactions(&state.pool, &state.plaid, &saved).await?;
+    let summary =
+        sync::sync_item_transactions(&state.pool, &state.plaid, state.clock.as_ref(), &saved)
+            .await?;
 
     Ok(Json(CreateItemResponse {
         item: saved,
@@ -128,7 +136,9 @@ pub async fn sync_item(
     let saved = item::get_item(&state.pool, id)
         .await?
         .ok_or(AppError::NotFound)?;
-    let summary = sync::sync_item_transactions(&state.pool, &state.plaid, &saved).await?;
+    let summary =
+        sync::sync_item_transactions(&state.pool, &state.plaid, state.clock.as_ref(), &saved)
+            .await?;
     Ok(Json(summary))
 }
 
@@ -147,11 +157,17 @@ pub async fn sync_all_items(State(state): State<AppState>) -> AppResult<Json<Vec
     let mut results = Vec::with_capacity(items.len());
 
     for item in &items {
-        let (summary, error) =
-            match sync::sync_item_transactions(&state.pool, &state.plaid, item).await {
-                Ok(summary) => (Some(summary), None),
-                Err(err) => (None, Some(err.to_string())),
-            };
+        let (summary, error) = match sync::sync_item_transactions(
+            &state.pool,
+            &state.plaid,
+            state.clock.as_ref(),
+            item,
+        )
+        .await
+        {
+            Ok(summary) => (Some(summary), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
         results.push(ItemSyncResult {
             item_id: item.id.into(),
             plaid_item_id: item.plaid_item_id.clone(),

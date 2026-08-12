@@ -3,7 +3,6 @@ use axum::extract::{Path, Query, State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cursor;
 use crate::error::{AppError, AppResult};
 use crate::repo::merchant::{self, Merchant, MerchantCursor};
 use crate::repo::merchant_category::{self, MerchantCategory};
@@ -11,6 +10,7 @@ use crate::repo::tag::{self, TagValue};
 use crate::repo::transaction_rule;
 use crate::routes::tags::AttachTagRequest;
 use crate::state::AppState;
+use crate::utils::cursor;
 
 fn default_limit() -> i64 {
     50

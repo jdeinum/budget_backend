@@ -72,6 +72,7 @@ pub async fn create_transaction_rule(
 
     let rule = transaction_rule::create_rule(
         &state.pool,
+        state.clock.now(),
         req.kind,
         req.pattern.as_deref(),
         req.tag_name.as_deref(),

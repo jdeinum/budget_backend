@@ -5,11 +5,11 @@ use sqlx::error::BoxDynError;
 use sqlx::{Sqlite, SqlitePool};
 use uuid::Uuid;
 
-use crate::db_uuid::DbUuid;
+use crate::utils::db_uuid::DbUuid;
 
 /// A transaction-ignore rule's condition. One rule is one condition; several
 /// rules combine with OR (see [`reevaluate_ignored`]). Stored as `TEXT`
-/// (mirrors [`DbUuid`](crate::db_uuid::DbUuid)'s manual `Type`/`Encode`/
+/// (mirrors [`DbUuid`](crate::utils::db_uuid::DbUuid)'s manual `Type`/`Encode`/
 /// `Decode` pattern) matching the CHECK constraint values in
 /// `0002_transaction_rules.sql`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -80,6 +80,7 @@ pub struct TransactionRule {
 #[allow(clippy::too_many_arguments)]
 pub async fn create_rule(
     pool: &SqlitePool,
+    now: DateTime<Utc>,
     kind: RuleKind,
     pattern: Option<&str>,
     tag_name: Option<&str>,
@@ -106,7 +107,7 @@ pub async fn create_rule(
     .bind(account_id)
     .bind(source_account_id)
     .bind(target_account_id)
-    .bind(Utc::now())
+    .bind(now)
     .fetch_one(pool)
     .await?;
 
@@ -209,17 +210,6 @@ mod tests {
     use crate::plaid::models::PlaidTransaction;
     use crate::repo::{account, item, tag, transaction};
     use chrono::NaiveDate;
-    use sqlx::sqlite::SqlitePoolOptions;
-
-    async fn pool() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        sqlx::migrate!().run(&pool).await.unwrap();
-        pool
-    }
 
     fn tx(id: &str, name: &str) -> PlaidTransaction {
         PlaidTransaction {
@@ -248,17 +238,17 @@ mod tests {
         .unwrap()
     }
 
-    #[tokio::test]
-    async fn merchant_contains_rule_ignores_matching_transactions_retroactively() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn merchant_contains_rule_ignores_matching_transactions_retroactively(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+        account::upsert_account(&pool, Utc::now(), "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
         transaction::upsert_transaction(
             &pool,
+            Utc::now(),
             item.id.into(),
             None,
             &tx("venmo_tx", "Venmo Payment"),
@@ -267,6 +257,7 @@ mod tests {
         .unwrap();
         transaction::upsert_transaction(
             &pool,
+            Utc::now(),
             item.id.into(),
             None,
             &tx("other_tx", "Whole Foods"),
@@ -276,6 +267,7 @@ mod tests {
 
         create_rule(
             &pool,
+            Utc::now(),
             RuleKind::MerchantContains,
             Some("venmo"),
             None,
@@ -291,21 +283,27 @@ mod tests {
         assert!(!is_ignored(&pool, "other_tx").await);
     }
 
-    #[tokio::test]
-    async fn account_rule_ignores_all_transactions_on_that_account() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn account_rule_ignores_all_transactions_on_that_account(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+        account::upsert_account(&pool, Utc::now(), "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t1", "Whole Foods"))
-            .await
-            .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            Utc::now(),
+            item.id.into(),
+            None,
+            &tx("t1", "Whole Foods"),
+        )
+        .await
+        .unwrap();
 
         create_rule(
             &pool,
+            Utc::now(),
             RuleKind::Account,
             None,
             None,
@@ -320,28 +318,39 @@ mod tests {
         assert!(is_ignored(&pool, "t1").await);
     }
 
-    #[tokio::test]
-    async fn tag_rule_ignores_transactions_carrying_that_tag() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn tag_rule_ignores_transactions_carrying_that_tag(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+        account::upsert_account(&pool, Utc::now(), "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
-        let id =
-            transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t1", "Transfer"))
-                .await
-                .unwrap();
+        let id = transaction::upsert_transaction(
+            &pool,
+            Utc::now(),
+            item.id.into(),
+            None,
+            &tx("t1", "Transfer"),
+        )
+        .await
+        .unwrap();
         tag::tag_transaction(&pool, id, "category", "TRANSFER")
             .await
             .unwrap();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t2", "Whole Foods"))
-            .await
-            .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            Utc::now(),
+            item.id.into(),
+            None,
+            &tx("t2", "Whole Foods"),
+        )
+        .await
+        .unwrap();
 
         create_rule(
             &pool,
+            Utc::now(),
             RuleKind::Tag,
             None,
             Some("category"),
@@ -357,16 +366,15 @@ mod tests {
         assert!(!is_ignored(&pool, "t2").await);
     }
 
-    #[tokio::test]
-    async fn tag_rule_matches_through_the_transactions_merchant() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn tag_rule_matches_through_the_transactions_merchant(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+        account::upsert_account(&pool, Utc::now(), "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
-        let merchant = crate::repo::merchant::upsert_merchant(&pool, "Netflix", None)
+        let merchant = crate::repo::merchant::upsert_merchant(&pool, Utc::now(), "Netflix", None)
             .await
             .unwrap();
         tag::tag_merchant(&pool, merchant.id.into(), "type", "subscription")
@@ -375,18 +383,26 @@ mod tests {
 
         transaction::upsert_transaction(
             &pool,
+            Utc::now(),
             item.id.into(),
             Some(merchant.id.into()),
             &tx("t1", "Netflix"),
         )
         .await
         .unwrap();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t2", "Whole Foods"))
-            .await
-            .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            Utc::now(),
+            item.id.into(),
+            None,
+            &tx("t2", "Whole Foods"),
+        )
+        .await
+        .unwrap();
 
         create_rule(
             &pool,
+            Utc::now(),
             RuleKind::Tag,
             None,
             Some("type"),
@@ -402,25 +418,31 @@ mod tests {
         assert!(!is_ignored(&pool, "t2").await);
     }
 
-    #[tokio::test]
-    async fn tag_rule_matches_through_the_transactions_account() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn tag_rule_matches_through_the_transactions_account(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+        account::upsert_account(&pool, Utc::now(), "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
         tag::tag_account(&pool, "acc_1", "kind", "business")
             .await
             .unwrap();
 
-        transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t1", "Anything"))
-            .await
-            .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            Utc::now(),
+            item.id.into(),
+            None,
+            &tx("t1", "Anything"),
+        )
+        .await
+        .unwrap();
 
         create_rule(
             &pool,
+            Utc::now(),
             RuleKind::Tag,
             None,
             Some("kind"),
@@ -435,42 +457,50 @@ mod tests {
         assert!(is_ignored(&pool, "t1").await);
     }
 
-    #[tokio::test]
-    async fn transfer_rule_ignores_transactions_on_either_account_with_no_refinement() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn transfer_rule_ignores_transactions_on_either_account_with_no_refinement(
+        pool: SqlitePool,
+    ) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "checking", item.id.into(), "checking")
+        account::upsert_account(&pool, Utc::now(), "checking", item.id.into(), "checking")
             .await
             .unwrap();
-        account::upsert_account(&pool, "savings", item.id.into(), "savings")
+        account::upsert_account(&pool, Utc::now(), "savings", item.id.into(), "savings")
             .await
             .unwrap();
-        account::upsert_account(&pool, "credit_card", item.id.into(), "credit_card")
-            .await
-            .unwrap();
+        account::upsert_account(
+            &pool,
+            Utc::now(),
+            "credit_card",
+            item.id.into(),
+            "credit_card",
+        )
+        .await
+        .unwrap();
 
         let mut t1 = tx("t1", "Transfer out");
         t1.account_id = "checking".to_string();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &t1)
+        transaction::upsert_transaction(&pool, Utc::now(), item.id.into(), None, &t1)
             .await
             .unwrap();
 
         let mut t2 = tx("t2", "Transfer in");
         t2.account_id = "savings".to_string();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &t2)
+        transaction::upsert_transaction(&pool, Utc::now(), item.id.into(), None, &t2)
             .await
             .unwrap();
 
         let mut t3 = tx("t3", "Groceries");
         t3.account_id = "credit_card".to_string();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &t3)
+        transaction::upsert_transaction(&pool, Utc::now(), item.id.into(), None, &t3)
             .await
             .unwrap();
 
         create_rule(
             &pool,
+            Utc::now(),
             RuleKind::Transfer,
             None,
             None,
@@ -487,36 +517,37 @@ mod tests {
         assert!(!is_ignored(&pool, "t3").await);
     }
 
-    #[tokio::test]
-    async fn transfer_rule_with_tag_refinement_only_matches_tagged_transactions() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn transfer_rule_with_tag_refinement_only_matches_tagged_transactions(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "checking", item.id.into(), "checking")
+        account::upsert_account(&pool, Utc::now(), "checking", item.id.into(), "checking")
             .await
             .unwrap();
-        account::upsert_account(&pool, "savings", item.id.into(), "savings")
+        account::upsert_account(&pool, Utc::now(), "savings", item.id.into(), "savings")
             .await
             .unwrap();
 
         let mut tagged = tx("tagged_tx", "Transfer out");
         tagged.account_id = "checking".to_string();
-        let tagged_id = transaction::upsert_transaction(&pool, item.id.into(), None, &tagged)
-            .await
-            .unwrap();
+        let tagged_id =
+            transaction::upsert_transaction(&pool, Utc::now(), item.id.into(), None, &tagged)
+                .await
+                .unwrap();
         tag::tag_transaction(&pool, tagged_id, "category", "TRANSFER")
             .await
             .unwrap();
 
         let mut untagged = tx("untagged_tx", "Groceries");
         untagged.account_id = "savings".to_string();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &untagged)
+        transaction::upsert_transaction(&pool, Utc::now(), item.id.into(), None, &untagged)
             .await
             .unwrap();
 
         create_rule(
             &pool,
+            Utc::now(),
             RuleKind::Transfer,
             None,
             Some("category"),
@@ -532,17 +563,17 @@ mod tests {
         assert!(!is_ignored(&pool, "untagged_tx").await);
     }
 
-    #[tokio::test]
-    async fn deleting_a_rule_unignores_its_former_matches() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn deleting_a_rule_unignores_its_former_matches(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+        account::upsert_account(&pool, Utc::now(), "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
         transaction::upsert_transaction(
             &pool,
+            Utc::now(),
             item.id.into(),
             None,
             &tx("venmo_tx", "Venmo Payment"),
@@ -552,6 +583,7 @@ mod tests {
 
         let rule = create_rule(
             &pool,
+            Utc::now(),
             RuleKind::MerchantContains,
             Some("venmo"),
             None,

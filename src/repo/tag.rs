@@ -1,7 +1,7 @@
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use uuid::Uuid;
 
-use crate::db_uuid::DbUuid;
+use crate::utils::db_uuid::DbUuid;
 
 /// A tag is a single, reusable `(name, value)` pair — e.g. `("category",
 /// "FOOD_AND_DRINK")` — shared by every subject tagged with it, rather than
@@ -364,7 +364,18 @@ pub async fn list_for_accounts(
 
 #[cfg(test)]
 mod tests {
+    use quickcheck::{Arbitrary, Gen};
+
     use super::*;
+
+    impl Arbitrary for TagValue {
+        fn arbitrary(g: &mut Gen) -> Self {
+            TagValue {
+                name: String::arbitrary(g),
+                value: String::arbitrary(g),
+            }
+        }
+    }
 
     fn tv(name: &str, value: &str) -> TagValue {
         TagValue {
@@ -400,5 +411,58 @@ mod tests {
         let merged = merge_layers(&[&account, &merchant, &transaction]);
 
         assert_eq!(merged, vec![tv("category", "GENERAL")]);
+    }
+
+    /// The doc comment promises the result is "sorted by name" with one
+    /// entry per name — for arbitrary layers, not just the handful of
+    /// examples above.
+    fn prop_merged_tags_are_sorted_by_name_with_no_duplicates(layers: Vec<Vec<TagValue>>) -> bool {
+        let layer_refs: Vec<&[TagValue]> = layers.iter().map(Vec::as_slice).collect();
+        let merged = merge_layers(&layer_refs);
+        let names: Vec<&str> = merged.iter().map(|t| t.name.as_str()).collect();
+
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        let unique: std::collections::HashSet<&str> = names.iter().copied().collect();
+
+        names == sorted && unique.len() == names.len()
+    }
+
+    #[test]
+    fn merged_tags_are_sorted_by_name_with_no_duplicates() {
+        crate::utils::proptest_support::run(
+            "merged_tags_are_sorted_by_name_with_no_duplicates",
+            prop_merged_tags_are_sorted_by_name_with_no_duplicates
+                as fn(Vec<Vec<TagValue>>) -> bool,
+        );
+    }
+
+    /// Every merged tag's value is whichever occurrence of that name came
+    /// last across the flattened (layer, tag) sequence — "later layers
+    /// win", and within a layer, a later tag wins over an earlier one
+    /// under the same name (matches the repeated-`insert` implementation).
+    fn prop_a_merged_tags_value_is_the_last_occurrence_of_its_name(
+        layers: Vec<Vec<TagValue>>,
+    ) -> bool {
+        let layer_refs: Vec<&[TagValue]> = layers.iter().map(Vec::as_slice).collect();
+        let flattened: Vec<&TagValue> = layers.iter().flatten().collect();
+
+        merge_layers(&layer_refs).iter().all(|tag| {
+            let expected = flattened
+                .iter()
+                .rev()
+                .find(|t| t.name == tag.name)
+                .map(|t| t.value.as_str());
+            expected == Some(tag.value.as_str())
+        })
+    }
+
+    #[test]
+    fn a_merged_tags_value_is_the_last_occurrence_of_its_name() {
+        crate::utils::proptest_support::run(
+            "a_merged_tags_value_is_the_last_occurrence_of_its_name",
+            prop_a_merged_tags_value_is_the_last_occurrence_of_its_name
+                as fn(Vec<Vec<TagValue>>) -> bool,
+        );
     }
 }

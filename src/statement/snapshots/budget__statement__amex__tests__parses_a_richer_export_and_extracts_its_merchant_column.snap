@@ -1,0 +1,30 @@
+---
+source: src/statement/amex.rs
+expression: rows
+---
+[
+    ParsedTransaction {
+        date: 2026-07-07,
+        amount: 15.99,
+        description: "MEMBERSHIP FEE INSTALLMENT",
+        merchant: "MEMBERSHIP FEE INSTALLMENT",
+    },
+    ParsedTransaction {
+        date: 2026-07-07,
+        amount: 12.68,
+        description: "FRIENDS CAFE YYC 00-080 CALGARY",
+        merchant: "FRIENDS CAFE YYC 00-080 CALGARY",
+    },
+    ParsedTransaction {
+        date: 2026-07-06,
+        amount: -1500.0,
+        description: "PAYMENT RECEIVED - THANK YOU",
+        merchant: "PAYMENT RECEIVED - THANK YOU",
+    },
+    ParsedTransaction {
+        date: 2026-07-06,
+        amount: 26.25,
+        description: "EDGEMONT ATHLETIC 41158 CALGARY",
+        merchant: "EDGEMONT ATHLETIC 41158 CALGARY",
+    },
+]

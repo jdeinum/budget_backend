@@ -1,0 +1,54 @@
+---
+source: src/statement/amex.rs
+expression: rows
+---
+[
+    ParsedTransaction {
+        date: 2026-08-07,
+        amount: 15.99,
+        description: "MEMBERSHIP FEE INSTALLMENT",
+        merchant: "MEMBERSHIP FEE INSTALLMENT",
+    },
+    ParsedTransaction {
+        date: 2026-08-06,
+        amount: 12.36,
+        description: "MCDONALD'S #6261 WETASKIWIN",
+        merchant: "MCDONALD'S #6261 WETASKIWIN",
+    },
+    ParsedTransaction {
+        date: 2026-08-06,
+        amount: 54.98,
+        description: "WETASKIWIN ESSO OTR WETASKIWIN",
+        merchant: "WETASKIWIN ESSO OTR WETASKIWIN",
+    },
+    ParsedTransaction {
+        date: 2026-08-04,
+        amount: 34.68,
+        description: "MOBIL@ 3825 GAS STN WESTLOCK",
+        merchant: "MOBIL@ 3825 GAS STN WESTLOCK",
+    },
+    ParsedTransaction {
+        date: 2026-08-03,
+        amount: 75.0,
+        description: "CITY OF EDM TICKETS EDM EDMONTON",
+        merchant: "CITY OF EDM TICKETS EDM EDMONTON",
+    },
+    ParsedTransaction {
+        date: 2026-08-04,
+        amount: 11.94,
+        description: "MCDONALD'S #5634 QPS SHERWOOD PARK",
+        merchant: "MCDONALD'S #5634 QPS SHERWOOD PARK",
+    },
+    ParsedTransaction {
+        date: 2026-08-01,
+        amount: 6.3,
+        description: "A LITTLE BIT OF EVERYTH Athabasca",
+        merchant: "A LITTLE BIT OF EVERYTH Athabasca",
+    },
+    ParsedTransaction {
+        date: 2026-08-01,
+        amount: 70.59,
+        description: "FGP40019 CLYDE CORNER F WESTLOCK COUN",
+        merchant: "FGP40019 CLYDE CORNER F WESTLOCK COUN",
+    },
+]

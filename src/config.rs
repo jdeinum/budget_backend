@@ -10,6 +10,11 @@ pub struct PlaidField {
     pub client_id: String,
     pub secret: String,
     pub env: PlaidEnv,
+    /// Overrides the URL derived from `env` — unset in real config/env,
+    /// pointed at a `wiremock` server in tests so `PlaidClient` never makes a
+    /// real network call.
+    #[serde(default)]
+    pub base_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]

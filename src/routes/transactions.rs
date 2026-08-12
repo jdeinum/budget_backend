@@ -4,7 +4,6 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cursor;
 use crate::error::{AppError, AppResult};
 use crate::repo::account;
 use crate::repo::merchant;
@@ -15,6 +14,7 @@ use crate::repo::transaction::{
 use crate::repo::transaction_rule;
 use crate::routes::tags::AttachTagRequest;
 use crate::state::AppState;
+use crate::utils::cursor;
 
 fn default_limit() -> i64 {
     50
@@ -55,6 +55,7 @@ pub async fn create_transaction(
 
     let created = transaction::create_manual_transaction(
         &state.pool,
+        state.clock.now(),
         &req.account_id,
         req.date,
         req.amount,

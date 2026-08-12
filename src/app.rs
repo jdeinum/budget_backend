@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use crate::config::AppConfig;
 use crate::plaid::PlaidClient;
 use crate::state::AppState;
+use crate::utils::clock::SystemClock;
 
 /// A fully built app: routes wired to a live DB pool, bound to a listener but
 /// not yet serving. Splitting bind from serve lets callers (tests, mainly)
@@ -61,6 +62,7 @@ pub async fn build(config: AppConfig) -> anyhow::Result<App> {
         pool,
         plaid: Arc::new(plaid),
         config: Arc::new(config.clone()),
+        clock: Arc::new(SystemClock),
     };
 
     let router = crate::routes::router().with_state(state);

@@ -4,9 +4,9 @@ use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::db_uuid::DbUuid;
 use crate::repo::tag::{self, TagValue};
-use crate::search::fts5_query;
+use crate::utils::db_uuid::DbUuid;
+use crate::utils::search::fts5_query;
 
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct Merchant {
@@ -24,12 +24,13 @@ pub struct Merchant {
 /// otherwise. `name` is always refreshed to the latest observed value.
 pub async fn upsert_merchant(
     pool: &SqlitePool,
+    now: DateTime<Utc>,
     name: &str,
     entity_id: Option<&str>,
 ) -> sqlx::Result<Merchant> {
     match entity_id {
-        Some(entity_id) => upsert_by_entity_id(pool, name, entity_id).await,
-        None => upsert_by_name(pool, name).await,
+        Some(entity_id) => upsert_by_entity_id(pool, now, name, entity_id).await,
+        None => upsert_by_name(pool, now, name).await,
     }
 }
 
@@ -45,10 +46,10 @@ pub async fn upsert_merchant(
 /// step silently never triggers and inserts a duplicate row instead.
 async fn upsert_by_entity_id(
     pool: &SqlitePool,
+    now: DateTime<Utc>,
     name: &str,
     entity_id: &str,
 ) -> sqlx::Result<Merchant> {
-    let now = Utc::now();
     let mut tx = pool.begin().await?;
 
     if let Some(m) = sqlx::query_as::<_, Merchant>(
@@ -94,8 +95,11 @@ async fn upsert_by_entity_id(
     Ok(m)
 }
 
-async fn upsert_by_name(pool: &SqlitePool, name: &str) -> sqlx::Result<Merchant> {
-    let now = Utc::now();
+async fn upsert_by_name(
+    pool: &SqlitePool,
+    now: DateTime<Utc>,
+    name: &str,
+) -> sqlx::Result<Merchant> {
     sqlx::query_as::<_, Merchant>(
         r#"
         INSERT INTO merchants (id, name, created_at, updated_at)
@@ -183,27 +187,15 @@ pub async fn get_merchant(pool: &SqlitePool, id: Uuid) -> sqlx::Result<Option<Me
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::sqlite::SqlitePoolOptions;
 
-    async fn pool() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        sqlx::migrate!().run(&pool).await.unwrap();
-        pool
-    }
-
-    #[tokio::test]
-    async fn dedupes_by_entity_id_and_refreshes_name() {
-        let pool = pool().await;
+    #[sqlx::test]
+    async fn dedupes_by_entity_id_and_refreshes_name(pool: SqlitePool) {
         let entity_id = format!("ent_{}", Uuid::new_v4());
 
-        let first = upsert_merchant(&pool, "UBER *TRIP", Some(&entity_id))
+        let first = upsert_merchant(&pool, Utc::now(), "UBER *TRIP", Some(&entity_id))
             .await
             .unwrap();
-        let second = upsert_merchant(&pool, "Uber", Some(&entity_id))
+        let second = upsert_merchant(&pool, Utc::now(), "Uber", Some(&entity_id))
             .await
             .unwrap();
 
@@ -212,33 +204,33 @@ mod tests {
         assert_eq!(second.entity_id.as_deref(), Some(entity_id.as_str()));
     }
 
-    #[tokio::test]
-    async fn backfills_entity_id_onto_existing_name_only_merchant() {
-        let pool = pool().await;
+    #[sqlx::test]
+    async fn backfills_entity_id_onto_existing_name_only_merchant(pool: SqlitePool) {
         let name = format!("Test Cafe {}", Uuid::new_v4());
         let entity_id = format!("ent_{}", Uuid::new_v4());
 
-        let name_only = upsert_merchant(&pool, &name, None).await.unwrap();
+        let name_only = upsert_merchant(&pool, Utc::now(), &name, None)
+            .await
+            .unwrap();
         assert_eq!(name_only.entity_id, None);
 
-        let claimed = upsert_merchant(&pool, &name, Some(&entity_id))
+        let claimed = upsert_merchant(&pool, Utc::now(), &name, Some(&entity_id))
             .await
             .unwrap();
         assert_eq!(claimed.id, name_only.id);
         assert_eq!(claimed.entity_id.as_deref(), Some(entity_id.as_str()));
     }
 
-    #[tokio::test]
-    async fn distinct_entity_ids_stay_distinct_even_with_same_name() {
-        let pool = pool().await;
+    #[sqlx::test]
+    async fn distinct_entity_ids_stay_distinct_even_with_same_name(pool: SqlitePool) {
         let shared_name = format!("Chain Store {}", Uuid::new_v4());
         let entity_a = format!("ent_a_{}", Uuid::new_v4());
         let entity_b = format!("ent_b_{}", Uuid::new_v4());
 
-        let a = upsert_merchant(&pool, &shared_name, Some(&entity_a))
+        let a = upsert_merchant(&pool, Utc::now(), &shared_name, Some(&entity_a))
             .await
             .unwrap();
-        let b = upsert_merchant(&pool, &shared_name, Some(&entity_b))
+        let b = upsert_merchant(&pool, Utc::now(), &shared_name, Some(&entity_b))
             .await
             .unwrap();
 

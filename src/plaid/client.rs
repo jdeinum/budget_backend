@@ -12,7 +12,7 @@ use super::models::*;
 #[derive(Clone)]
 pub struct PlaidClient {
     http: reqwest::Client,
-    base_url: &'static str,
+    base_url: String,
     client_id: String,
     secret: String,
 }
@@ -21,7 +21,10 @@ impl PlaidClient {
     pub fn new(config: &PlaidField) -> Self {
         Self {
             http: reqwest::Client::new(),
-            base_url: config.env.base_url(),
+            base_url: config
+                .base_url
+                .clone()
+                .unwrap_or_else(|| config.env.base_url().to_string()),
             client_id: config.client_id.clone(),
             secret: config.secret.clone(),
         }

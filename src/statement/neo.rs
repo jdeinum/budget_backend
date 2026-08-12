@@ -93,19 +93,7 @@ mod tests {
     fn parses_the_real_sample_export() {
         let importer = NeoImporter;
         let rows = importer.parse(SAMPLE.as_bytes()).unwrap();
-        assert_eq!(rows.len(), 8);
-
-        assert_eq!(
-            rows[0],
-            ParsedTransaction {
-                date: NaiveDate::from_ymd_opt(2026, 8, 11).unwrap(),
-                amount: 26.35,
-                description: "REAL CDN LIQUOR STR 16 CALGARY CAN".to_string(),
-                merchant: "REAL CDN LIQUOR STR 16 CALGARY CAN".to_string(),
-            }
-        );
-        assert_eq!(rows[7].description, "Annual Card Fee");
-        assert_eq!(rows[7].amount, 149.00);
+        insta::assert_debug_snapshot!(rows);
     }
 
     #[test]

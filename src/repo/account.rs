@@ -3,9 +3,9 @@ use sqlx::SqlitePool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::db_uuid::DbUuid;
 use crate::repo::tag::{self, TagValue};
-use crate::source::Source;
+use crate::utils::db_uuid::DbUuid;
+use crate::utils::source::Source;
 
 /// An account, either synced from a Plaid item (keyed on Plaid's own
 /// `account_id` — there's no separate identity to dedupe the way merchants
@@ -43,11 +43,11 @@ pub struct Account {
 /// on their next sync.
 pub async fn upsert_account(
     pool: &SqlitePool,
+    now: DateTime<Utc>,
     account_id: &str,
     item_id: Uuid,
     name: &str,
 ) -> sqlx::Result<Account> {
-    let now = Utc::now();
     sqlx::query_as::<_, Account>(
         r#"
         INSERT INTO accounts (id, item_id, name, created_at, updated_at)
@@ -74,10 +74,10 @@ pub async fn upsert_account(
 /// anything else.
 pub async fn create_manual_account(
     pool: &SqlitePool,
+    now: DateTime<Utc>,
     source: Source,
     name: &str,
 ) -> sqlx::Result<Account> {
-    let now = Utc::now();
     sqlx::query_as::<_, Account>(
         r#"
         INSERT INTO accounts (id, item_id, source, name, created_at, updated_at)
@@ -163,6 +163,7 @@ pub async fn get_account(pool: &SqlitePool, id: &str) -> sqlx::Result<Option<Acc
 
 pub async fn rename_account(
     pool: &SqlitePool,
+    now: DateTime<Utc>,
     id: &str,
     name: &str,
 ) -> sqlx::Result<Option<Account>> {
@@ -170,7 +171,7 @@ pub async fn rename_account(
         "UPDATE accounts SET name = ?1, updated_at = ?2 WHERE id = ?3 RETURNING *",
     )
     .bind(name)
-    .bind(Utc::now())
+    .bind(now)
     .bind(id)
     .fetch_optional(pool)
     .await
@@ -180,66 +181,70 @@ pub async fn rename_account(
 mod tests {
     use super::*;
     use crate::repo::item;
-    use sqlx::sqlite::SqlitePoolOptions;
 
-    async fn pool() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        sqlx::migrate!().run(&pool).await.unwrap();
-        pool
-    }
-
-    #[tokio::test]
-    async fn upsert_seeds_name_from_the_caller_on_first_sight() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn upsert_seeds_name_from_the_caller_on_first_sight(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
 
-        let account = upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
-            .await
-            .unwrap();
+        let account = upsert_account(
+            &pool,
+            Utc::now(),
+            "acc_123",
+            item.id.into(),
+            "Plaid Checking",
+        )
+        .await
+        .unwrap();
 
         assert_eq!(account.id, "acc_123");
         assert_eq!(account.name, "Plaid Checking");
     }
 
-    #[tokio::test]
-    async fn id_as_name_fallback_is_backfilled_on_next_sync() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn id_as_name_fallback_is_backfilled_on_next_sync(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
 
         // Created before a Plaid name was available (or without one) —
         // name falls back to the raw id, same as pre-existing accounts.
-        let account = upsert_account(&pool, "acc_123", item.id.into(), "acc_123")
+        let account = upsert_account(&pool, Utc::now(), "acc_123", item.id.into(), "acc_123")
             .await
             .unwrap();
         assert_eq!(account.name, "acc_123");
 
         // The next sync has a real Plaid name — it should backfill, since
         // the account was never actually renamed.
-        let resynced = upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
-            .await
-            .unwrap();
+        let resynced = upsert_account(
+            &pool,
+            Utc::now(),
+            "acc_123",
+            item.id.into(),
+            "Plaid Checking",
+        )
+        .await
+        .unwrap();
         assert_eq!(resynced.name, "Plaid Checking");
     }
 
-    #[tokio::test]
-    async fn rename_survives_a_resync() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn rename_survives_a_resync(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
 
-        upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
-            .await
-            .unwrap();
-        let renamed = rename_account(&pool, "acc_123", "Checking")
+        upsert_account(
+            &pool,
+            Utc::now(),
+            "acc_123",
+            item.id.into(),
+            "Plaid Checking",
+        )
+        .await
+        .unwrap();
+        let renamed = rename_account(&pool, Utc::now(), "acc_123", "Checking")
             .await
             .unwrap()
             .unwrap();
@@ -247,21 +252,32 @@ mod tests {
 
         // A re-sync upserts again — this must NOT clobber the rename, even
         // though Plaid's own name is passed again.
-        let resynced = upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
-            .await
-            .unwrap();
+        let resynced = upsert_account(
+            &pool,
+            Utc::now(),
+            "acc_123",
+            item.id.into(),
+            "Plaid Checking",
+        )
+        .await
+        .unwrap();
         assert_eq!(resynced.name, "Checking");
     }
 
-    #[tokio::test]
-    async fn lists_accounts_with_tags() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn lists_accounts_with_tags(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
-            .await
-            .unwrap();
+        upsert_account(
+            &pool,
+            Utc::now(),
+            "acc_123",
+            item.id.into(),
+            "Plaid Checking",
+        )
+        .await
+        .unwrap();
         tag::tag_account(&pool, "acc_123", "type", "checking")
             .await
             .unwrap();
@@ -277,14 +293,14 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn deletes_a_manual_account_and_its_transactions() {
-        let pool = pool().await;
-        let account = create_manual_account(&pool, Source::Amex, "Amex")
+    #[sqlx::test]
+    async fn deletes_a_manual_account_and_its_transactions(pool: SqlitePool) {
+        let account = create_manual_account(&pool, Utc::now(), Source::Amex, "Amex")
             .await
             .unwrap();
         crate::repo::transaction::import_transactions(
             &pool,
+            Utc::now(),
             &account.id,
             Source::Amex,
             &[crate::statement::ParsedTransaction {
@@ -310,15 +326,20 @@ mod tests {
         assert_eq!(remaining_transactions, 0);
     }
 
-    #[tokio::test]
-    async fn refuses_to_delete_a_plaid_account() {
-        let pool = pool().await;
-        let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
+    #[sqlx::test]
+    async fn refuses_to_delete_a_plaid_account(pool: SqlitePool) {
+        let item = item::upsert_item(&pool, Utc::now(), "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
-            .await
-            .unwrap();
+        upsert_account(
+            &pool,
+            Utc::now(),
+            "acc_123",
+            item.id.into(),
+            "Plaid Checking",
+        )
+        .await
+        .unwrap();
 
         let deleted = delete_account(&pool, "acc_123").await.unwrap();
         assert!(!deleted);
