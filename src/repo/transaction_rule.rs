@@ -255,17 +255,38 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &tx("venmo_tx", "Venmo Payment"))
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &tx("other_tx", "Whole Foods"))
-            .await
-            .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            item.id.into(),
+            None,
+            &tx("venmo_tx", "Venmo Payment"),
+        )
+        .await
+        .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            item.id.into(),
+            None,
+            &tx("other_tx", "Whole Foods"),
+        )
+        .await
+        .unwrap();
 
-        create_rule(&pool, RuleKind::MerchantContains, Some("venmo"), None, None, None, None, None)
-            .await
-            .unwrap();
+        create_rule(
+            &pool,
+            RuleKind::MerchantContains,
+            Some("venmo"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
         assert!(is_ignored(&pool, "venmo_tx").await);
         assert!(!is_ignored(&pool, "other_tx").await);
@@ -277,14 +298,25 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t1", "Whole Foods"))
             .await
             .unwrap();
 
-        create_rule(&pool, RuleKind::Account, None, None, None, Some("acc_1"), None, None)
-            .await
-            .unwrap();
+        create_rule(
+            &pool,
+            RuleKind::Account,
+            None,
+            None,
+            None,
+            Some("acc_1"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
         assert!(is_ignored(&pool, "t1").await);
     }
@@ -295,18 +327,32 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
-        let id = transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t1", "Transfer"))
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
-        tag::tag_transaction(&pool, id, "category", "TRANSFER").await.unwrap();
+        let id =
+            transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t1", "Transfer"))
+                .await
+                .unwrap();
+        tag::tag_transaction(&pool, id, "category", "TRANSFER")
+            .await
+            .unwrap();
         transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t2", "Whole Foods"))
             .await
             .unwrap();
 
-        create_rule(&pool, RuleKind::Tag, None, Some("category"), Some("TRANSFER"), None, None, None)
-            .await
-            .unwrap();
+        create_rule(
+            &pool,
+            RuleKind::Tag,
+            None,
+            Some("category"),
+            Some("TRANSFER"),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
         assert!(is_ignored(&pool, "t1").await);
         assert!(!is_ignored(&pool, "t2").await);
@@ -318,7 +364,9 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         let merchant = crate::repo::merchant::upsert_merchant(&pool, "Netflix", None)
             .await
             .unwrap();
@@ -326,16 +374,30 @@ mod tests {
             .await
             .unwrap();
 
-        transaction::upsert_transaction(&pool, item.id.into(), Some(merchant.id.into()), &tx("t1", "Netflix"))
-            .await
-            .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            item.id.into(),
+            Some(merchant.id.into()),
+            &tx("t1", "Netflix"),
+        )
+        .await
+        .unwrap();
         transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t2", "Whole Foods"))
             .await
             .unwrap();
 
-        create_rule(&pool, RuleKind::Tag, None, Some("type"), Some("subscription"), None, None, None)
-            .await
-            .unwrap();
+        create_rule(
+            &pool,
+            RuleKind::Tag,
+            None,
+            Some("type"),
+            Some("subscription"),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
         assert!(is_ignored(&pool, "t1").await);
         assert!(!is_ignored(&pool, "t2").await);
@@ -347,16 +409,29 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
-        tag::tag_account(&pool, "acc_1", "kind", "business").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
+        tag::tag_account(&pool, "acc_1", "kind", "business")
+            .await
+            .unwrap();
 
         transaction::upsert_transaction(&pool, item.id.into(), None, &tx("t1", "Anything"))
             .await
             .unwrap();
 
-        create_rule(&pool, RuleKind::Tag, None, Some("kind"), Some("business"), None, None, None)
-            .await
-            .unwrap();
+        create_rule(
+            &pool,
+            RuleKind::Tag,
+            None,
+            Some("kind"),
+            Some("business"),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
         assert!(is_ignored(&pool, "t1").await);
     }
@@ -367,25 +442,46 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "checking", item.id.into(), "checking").await.unwrap();
-        account::upsert_account(&pool, "savings", item.id.into(), "savings").await.unwrap();
-        account::upsert_account(&pool, "credit_card", item.id.into(), "credit_card").await.unwrap();
+        account::upsert_account(&pool, "checking", item.id.into(), "checking")
+            .await
+            .unwrap();
+        account::upsert_account(&pool, "savings", item.id.into(), "savings")
+            .await
+            .unwrap();
+        account::upsert_account(&pool, "credit_card", item.id.into(), "credit_card")
+            .await
+            .unwrap();
 
         let mut t1 = tx("t1", "Transfer out");
         t1.account_id = "checking".to_string();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &t1).await.unwrap();
+        transaction::upsert_transaction(&pool, item.id.into(), None, &t1)
+            .await
+            .unwrap();
 
         let mut t2 = tx("t2", "Transfer in");
         t2.account_id = "savings".to_string();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &t2).await.unwrap();
+        transaction::upsert_transaction(&pool, item.id.into(), None, &t2)
+            .await
+            .unwrap();
 
         let mut t3 = tx("t3", "Groceries");
         t3.account_id = "credit_card".to_string();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &t3).await.unwrap();
-
-        create_rule(&pool, RuleKind::Transfer, None, None, None, None, Some("checking"), Some("savings"))
+        transaction::upsert_transaction(&pool, item.id.into(), None, &t3)
             .await
             .unwrap();
+
+        create_rule(
+            &pool,
+            RuleKind::Transfer,
+            None,
+            None,
+            None,
+            None,
+            Some("checking"),
+            Some("savings"),
+        )
+        .await
+        .unwrap();
 
         assert!(is_ignored(&pool, "t1").await);
         assert!(is_ignored(&pool, "t2").await);
@@ -398,15 +494,21 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "checking", item.id.into(), "checking").await.unwrap();
-        account::upsert_account(&pool, "savings", item.id.into(), "savings").await.unwrap();
+        account::upsert_account(&pool, "checking", item.id.into(), "checking")
+            .await
+            .unwrap();
+        account::upsert_account(&pool, "savings", item.id.into(), "savings")
+            .await
+            .unwrap();
 
         let mut tagged = tx("tagged_tx", "Transfer out");
         tagged.account_id = "checking".to_string();
         let tagged_id = transaction::upsert_transaction(&pool, item.id.into(), None, &tagged)
             .await
             .unwrap();
-        tag::tag_transaction(&pool, tagged_id, "category", "TRANSFER").await.unwrap();
+        tag::tag_transaction(&pool, tagged_id, "category", "TRANSFER")
+            .await
+            .unwrap();
 
         let mut untagged = tx("untagged_tx", "Groceries");
         untagged.account_id = "savings".to_string();
@@ -437,14 +539,30 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
-        transaction::upsert_transaction(&pool, item.id.into(), None, &tx("venmo_tx", "Venmo Payment"))
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
             .await
             .unwrap();
+        transaction::upsert_transaction(
+            &pool,
+            item.id.into(),
+            None,
+            &tx("venmo_tx", "Venmo Payment"),
+        )
+        .await
+        .unwrap();
 
-        let rule = create_rule(&pool, RuleKind::MerchantContains, Some("venmo"), None, None, None, None, None)
-            .await
-            .unwrap();
+        let rule = create_rule(
+            &pool,
+            RuleKind::MerchantContains,
+            Some("venmo"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
         assert!(is_ignored(&pool, "venmo_tx").await);
 
         let existed = delete_rule(&pool, rule.id.into()).await.unwrap();

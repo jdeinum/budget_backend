@@ -79,7 +79,11 @@ pub async fn tag_transaction(
 }
 
 /// Removes whatever tag is set under `name` on a transaction, if any.
-pub async fn untag_transaction(pool: &SqlitePool, transaction_id: Uuid, name: &str) -> sqlx::Result<()> {
+pub async fn untag_transaction(
+    pool: &SqlitePool,
+    transaction_id: Uuid,
+    name: &str,
+) -> sqlx::Result<()> {
     sqlx::query(
         r#"
         DELETE FROM transaction_tags
@@ -146,7 +150,12 @@ pub async fn untag_merchant(pool: &SqlitePool, merchant_id: Uuid, name: &str) ->
 
 /// Sets `name` -> `value` on an account; same single-valued-per-name
 /// replacement semantics as [`tag_transaction`].
-pub async fn tag_account(pool: &SqlitePool, account_id: &str, name: &str, value: &str) -> sqlx::Result<()> {
+pub async fn tag_account(
+    pool: &SqlitePool,
+    account_id: &str,
+    name: &str,
+    value: &str,
+) -> sqlx::Result<()> {
     let tag = get_or_create_tag(pool, name, value).await?;
 
     sqlx::query(
@@ -162,11 +171,13 @@ pub async fn tag_account(pool: &SqlitePool, account_id: &str, name: &str, value:
     .execute(pool)
     .await?;
 
-    sqlx::query("INSERT INTO account_tags (account_id, tag_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING")
-        .bind(account_id)
-        .bind(tag.id)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "INSERT INTO account_tags (account_id, tag_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
+    )
+    .bind(account_id)
+    .bind(tag.id)
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
@@ -188,7 +199,10 @@ pub async fn untag_account(pool: &SqlitePool, account_id: &str, name: &str) -> s
 }
 
 /// A single transaction's tags — for the tag-attach endpoint's response.
-pub async fn list_for_transaction(pool: &SqlitePool, transaction_id: Uuid) -> sqlx::Result<Vec<TagValue>> {
+pub async fn list_for_transaction(
+    pool: &SqlitePool,
+    transaction_id: Uuid,
+) -> sqlx::Result<Vec<TagValue>> {
     sqlx::query_as::<_, TagValue>(
         r#"
         SELECT tag.name, tag.value
@@ -233,7 +247,10 @@ pub async fn list_for_transactions(
 }
 
 /// A single merchant's tags — for the tag-attach endpoint's response.
-pub async fn list_for_merchant(pool: &SqlitePool, merchant_id: Uuid) -> sqlx::Result<Vec<TagValue>> {
+pub async fn list_for_merchant(
+    pool: &SqlitePool,
+    merchant_id: Uuid,
+) -> sqlx::Result<Vec<TagValue>> {
     sqlx::query_as::<_, TagValue>(
         r#"
         SELECT tag.name, tag.value
@@ -293,7 +310,10 @@ pub fn merge_layers(layers: &[&[TagValue]]) -> Vec<TagValue> {
     }
     merged
         .into_iter()
-        .map(|(name, value)| TagValue { name: name.to_string(), value: value.to_string() })
+        .map(|(name, value)| TagValue {
+            name: name.to_string(),
+            value: value.to_string(),
+        })
         .collect()
 }
 
@@ -322,7 +342,10 @@ pub struct AccountTagRow {
     pub value: String,
 }
 
-pub async fn list_for_accounts(pool: &SqlitePool, account_ids: &[String]) -> sqlx::Result<Vec<AccountTagRow>> {
+pub async fn list_for_accounts(
+    pool: &SqlitePool,
+    account_ids: &[String],
+) -> sqlx::Result<Vec<AccountTagRow>> {
     if account_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -344,7 +367,10 @@ mod tests {
     use super::*;
 
     fn tv(name: &str, value: &str) -> TagValue {
-        TagValue { name: name.into(), value: value.into() }
+        TagValue {
+            name: name.into(),
+            value: value.into(),
+        }
     }
 
     #[test]
@@ -357,7 +383,11 @@ mod tests {
 
         assert_eq!(
             merged,
-            vec![tv("category", "TRAVEL"), tv("flag", "reviewed"), tv("kind", "business")]
+            vec![
+                tv("category", "TRAVEL"),
+                tv("flag", "reviewed"),
+                tv("kind", "business")
+            ]
         );
     }
 

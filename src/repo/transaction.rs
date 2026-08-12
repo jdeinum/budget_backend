@@ -187,7 +187,10 @@ pub async fn import_transactions(
         }
     }
 
-    Ok(ImportSummary { inserted, skipped_duplicates })
+    Ok(ImportSummary {
+        inserted,
+        skipped_duplicates,
+    })
 }
 
 /// Adds a single hand-entered transaction to `account_id` — the entry
@@ -219,7 +222,11 @@ pub async fn create_manual_transaction(
     // merchant column of its own.
     let merchant_id: DbUuid = match merchant_id {
         Some(id) => DbUuid::from(id),
-        None => crate::repo::merchant::upsert_merchant(pool, name, None).await?.id,
+        None => {
+            crate::repo::merchant::upsert_merchant(pool, name, None)
+                .await?
+                .id
+        }
     };
 
     sqlx::query_as::<_, Transaction>(
@@ -426,9 +433,11 @@ pub async fn list_paginated(
         qb.push(" AND t.date <= ").push_bind(end);
     }
     if let Some(q) = q {
-        qb.push(" AND t.rowid IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ")
-            .push_bind(fts5_query(q))
-            .push(")");
+        qb.push(
+            " AND t.rowid IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ",
+        )
+        .push_bind(fts5_query(q))
+        .push(")");
     }
     if let Some(cursor) = cursor {
         qb.push(format!(" AND ({column}, t.id) {} (", sort_dir.keyset_op()));
@@ -521,31 +530,46 @@ pub async fn list_paginated(
         own_by_transaction
             .entry(row.transaction_id)
             .or_default()
-            .push(TagValue { name: row.name, value: row.value });
+            .push(TagValue {
+                name: row.name,
+                value: row.value,
+            });
     }
     let mut merchant_by_id: HashMap<DbUuid, Vec<TagValue>> = HashMap::new();
     for row in tag::list_for_merchants(pool, &merchant_ids).await? {
         merchant_by_id
             .entry(row.merchant_id)
             .or_default()
-            .push(TagValue { name: row.name, value: row.value });
+            .push(TagValue {
+                name: row.name,
+                value: row.value,
+            });
     }
     let mut account_by_id: HashMap<String, Vec<TagValue>> = HashMap::new();
     for row in tag::list_for_accounts(pool, &account_ids).await? {
         account_by_id
             .entry(row.account_id)
             .or_default()
-            .push(TagValue { name: row.name, value: row.value });
+            .push(TagValue {
+                name: row.name,
+                value: row.value,
+            });
     }
 
     for t in &mut rows {
-        let account_tags = account_by_id.get(&t.account_id).map(Vec::as_slice).unwrap_or(&[]);
+        let account_tags = account_by_id
+            .get(&t.account_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         let merchant_tags = t
             .merchant_id
             .and_then(|id| merchant_by_id.get(&id))
             .map(Vec::as_slice)
             .unwrap_or(&[]);
-        let own_tags = own_by_transaction.get(&t.id).map(Vec::as_slice).unwrap_or(&[]);
+        let own_tags = own_by_transaction
+            .get(&t.id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         t.tags = tag::merge_layers(&[account_tags, merchant_tags, own_tags]);
     }
 
@@ -593,7 +617,9 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
 
         let d1 = NaiveDate::from_ymd_opt(2026, 1, 3).unwrap();
         let d2 = NaiveDate::from_ymd_opt(2026, 1, 2).unwrap();
@@ -622,7 +648,10 @@ mod tests {
         assert_eq!(page1.len(), 2);
         assert_eq!(page1[0].date, d1);
         assert_eq!(page1[1].date, d2);
-        assert!(cursor1.is_some(), "expected a next_cursor with more rows remaining");
+        assert!(
+            cursor1.is_some(),
+            "expected a next_cursor with more rows remaining"
+        );
 
         let (page2, cursor2) = list_paginated(
             &pool,
@@ -641,7 +670,10 @@ mod tests {
         .unwrap();
         assert_eq!(page2.len(), 1);
         assert_eq!(page2[0].date, d3);
-        assert!(cursor2.is_none(), "last page should not carry a next_cursor");
+        assert!(
+            cursor2.is_none(),
+            "last page should not carry a next_cursor"
+        );
     }
 
     #[tokio::test]
@@ -650,13 +682,17 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
 
         for (id, amount) in [("cheap", 5.0), ("mid", 20.0), ("pricey", 100.0)] {
             let mut t = tx(id, d);
             t.amount = amount;
-            upsert_transaction(&pool, item.id.into(), None, &t).await.unwrap();
+            upsert_transaction(&pool, item.id.into(), None, &t)
+                .await
+                .unwrap();
         }
 
         let (page1, cursor1) = list_paginated(
@@ -705,7 +741,9 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
 
         for id in ["both", "one"] {
@@ -713,18 +751,20 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let both_id =
-            sqlx::query_scalar::<_, DbUuid>("SELECT id FROM transactions WHERE plaid_transaction_id = ?1")
-                .bind("both")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-        let one_id =
-            sqlx::query_scalar::<_, DbUuid>("SELECT id FROM transactions WHERE plaid_transaction_id = ?1")
-                .bind("one")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        let both_id = sqlx::query_scalar::<_, DbUuid>(
+            "SELECT id FROM transactions WHERE plaid_transaction_id = ?1",
+        )
+        .bind("both")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let one_id = sqlx::query_scalar::<_, DbUuid>(
+            "SELECT id FROM transactions WHERE plaid_transaction_id = ?1",
+        )
+        .bind("one")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
         tag::tag_transaction(&pool, both_id.into(), "category", "FOOD_AND_DRINK")
             .await
@@ -767,18 +807,23 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
 
         let mut ids = std::collections::HashMap::new();
         for id in ["keep", "drop_a", "drop_b"] {
-            upsert_transaction(&pool, item.id.into(), None, &tx(id, d)).await.unwrap();
-            let transaction_id =
-                sqlx::query_scalar::<_, DbUuid>("SELECT id FROM transactions WHERE plaid_transaction_id = ?1")
-                    .bind(id)
-                    .fetch_one(&pool)
-                    .await
-                    .unwrap();
+            upsert_transaction(&pool, item.id.into(), None, &tx(id, d))
+                .await
+                .unwrap();
+            let transaction_id = sqlx::query_scalar::<_, DbUuid>(
+                "SELECT id FROM transactions WHERE plaid_transaction_id = ?1",
+            )
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
             ids.insert(id, transaction_id);
         }
 
@@ -822,8 +867,12 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
-        tag::tag_account(&pool, "acc_1", "kind", "business").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
+        tag::tag_account(&pool, "acc_1", "kind", "business")
+            .await
+            .unwrap();
         let merchant = crate::repo::merchant::upsert_merchant(&pool, "Whole Foods", None)
             .await
             .unwrap();
@@ -831,9 +880,14 @@ mod tests {
             .await
             .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-        let id = upsert_transaction(&pool, item.id.into(), Some(merchant.id.into()), &tx("t1", d))
-            .await
-            .unwrap();
+        let id = upsert_transaction(
+            &pool,
+            item.id.into(),
+            Some(merchant.id.into()),
+            &tx("t1", d),
+        )
+        .await
+        .unwrap();
 
         let (matched, _) = list_paginated(
             &pool,
@@ -855,8 +909,14 @@ mod tests {
         assert_eq!(
             found.tags,
             vec![
-                TagValue { name: "category".into(), value: "FOOD_AND_DRINK".into() },
-                TagValue { name: "kind".into(), value: "business".into() },
+                TagValue {
+                    name: "category".into(),
+                    value: "FOOD_AND_DRINK".into()
+                },
+                TagValue {
+                    name: "kind".into(),
+                    value: "business".into()
+                },
             ]
         );
     }
@@ -867,7 +927,9 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         let merchant = crate::repo::merchant::upsert_merchant(&pool, "Costco", None)
             .await
             .unwrap();
@@ -875,16 +937,26 @@ mod tests {
             .await
             .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-        let id = upsert_transaction(&pool, item.id.into(), Some(merchant.id.into()), &tx("t1", d))
+        let id = upsert_transaction(
+            &pool,
+            item.id.into(),
+            Some(merchant.id.into()),
+            &tx("t1", d),
+        )
+        .await
+        .unwrap();
+        tag::tag_transaction(&pool, id, "category", "TRAVEL")
             .await
             .unwrap();
-        tag::tag_transaction(&pool, id, "category", "TRAVEL").await.unwrap();
 
         let fetched = get(&pool, id).await.unwrap().unwrap();
 
         assert_eq!(
             fetched.tags,
-            vec![TagValue { name: "category".into(), value: "TRAVEL".into() }]
+            vec![TagValue {
+                name: "category".into(),
+                value: "TRAVEL".into()
+            }]
         );
     }
 
@@ -894,7 +966,9 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         let merchant = crate::repo::merchant::upsert_merchant(&pool, "Netflix", None)
             .await
             .unwrap();
@@ -902,11 +976,17 @@ mod tests {
             .await
             .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-        let tagged =
-            upsert_transaction(&pool, item.id.into(), Some(merchant.id.into()), &tx("t1", d))
-                .await
-                .unwrap();
-        upsert_transaction(&pool, item.id.into(), None, &tx("t2", d)).await.unwrap();
+        let tagged = upsert_transaction(
+            &pool,
+            item.id.into(),
+            Some(merchant.id.into()),
+            &tx("t1", d),
+        )
+        .await
+        .unwrap();
+        upsert_transaction(&pool, item.id.into(), None, &tx("t2", d))
+            .await
+            .unwrap();
 
         let filters = vec![("type".to_string(), "subscription".to_string())];
         let (matched, _) = list_paginated(
@@ -935,10 +1015,16 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
-        tag::tag_account(&pool, "acc_1", "kind", "business").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
+        tag::tag_account(&pool, "acc_1", "kind", "business")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-        upsert_transaction(&pool, item.id.into(), None, &tx("t1", d)).await.unwrap();
+        upsert_transaction(&pool, item.id.into(), None, &tx("t1", d))
+            .await
+            .unwrap();
 
         let excluded = vec![("kind".to_string(), "business".to_string())];
         let (matched, _) = list_paginated(
@@ -966,16 +1052,22 @@ mod tests {
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
 
         let mut coffee = tx("coffee_tx", d);
         coffee.name = Some("Blue Bottle Coffee".to_string());
-        upsert_transaction(&pool, item.id.into(), None, &coffee).await.unwrap();
+        upsert_transaction(&pool, item.id.into(), None, &coffee)
+            .await
+            .unwrap();
 
         let mut grocery = tx("grocery_tx", d);
         grocery.name = Some("Whole Foods Market".to_string());
-        upsert_transaction(&pool, item.id.into(), None, &grocery).await.unwrap();
+        upsert_transaction(&pool, item.id.into(), None, &grocery)
+            .await
+            .unwrap();
 
         let (matched, _) = list_paginated(
             &pool,
@@ -997,7 +1089,11 @@ mod tests {
         assert_eq!(matched[0].name.as_deref(), Some("Blue Bottle Coffee"));
     }
 
-    fn parsed(date: NaiveDate, amount: f64, description: &str) -> crate::statement::ParsedTransaction {
+    fn parsed(
+        date: NaiveDate,
+        amount: f64,
+        description: &str,
+    ) -> crate::statement::ParsedTransaction {
         crate::statement::ParsedTransaction {
             date,
             amount,
@@ -1009,14 +1105,19 @@ mod tests {
     #[tokio::test]
     async fn imports_a_batch_and_reports_the_count() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Neo, "Neo").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Neo, "Neo")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 8, 11).unwrap();
 
         let summary = import_transactions(
             &pool,
             &account.id,
             Source::Neo,
-            &[parsed(d, 26.35, "REAL CDN LIQUOR"), parsed(d, 37.04, "REAL CDN SUPERSTORE")],
+            &[
+                parsed(d, 26.35, "REAL CDN LIQUOR"),
+                parsed(d, 37.04, "REAL CDN SUPERSTORE"),
+            ],
         )
         .await
         .unwrap();
@@ -1028,12 +1129,21 @@ mod tests {
     #[tokio::test]
     async fn reimporting_the_same_file_skips_everything_as_duplicates() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Neo, "Neo").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Neo, "Neo")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 8, 11).unwrap();
-        let rows = [parsed(d, 26.35, "REAL CDN LIQUOR"), parsed(d, 37.04, "REAL CDN SUPERSTORE")];
+        let rows = [
+            parsed(d, 26.35, "REAL CDN LIQUOR"),
+            parsed(d, 37.04, "REAL CDN SUPERSTORE"),
+        ];
 
-        import_transactions(&pool, &account.id, Source::Neo, &rows).await.unwrap();
-        let summary = import_transactions(&pool, &account.id, Source::Neo, &rows).await.unwrap();
+        import_transactions(&pool, &account.id, Source::Neo, &rows)
+            .await
+            .unwrap();
+        let summary = import_transactions(&pool, &account.id, Source::Neo, &rows)
+            .await
+            .unwrap();
 
         assert_eq!(summary.inserted, 0);
         assert_eq!(summary.skipped_duplicates, 2);
@@ -1042,7 +1152,9 @@ mod tests {
     #[tokio::test]
     async fn distinguishes_genuine_same_day_duplicates_by_occurrence() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Amex, "Amex").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Amex, "Amex")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 8, 4).unwrap();
 
         // Two identical $4.50 coffees on the same day are two real
@@ -1053,7 +1165,10 @@ mod tests {
             .unwrap();
         assert_eq!(summary1.inserted, 1);
 
-        let both_visits = [parsed(d, 4.50, "COFFEE SHOP"), parsed(d, 4.50, "COFFEE SHOP")];
+        let both_visits = [
+            parsed(d, 4.50, "COFFEE SHOP"),
+            parsed(d, 4.50, "COFFEE SHOP"),
+        ];
         let summary2 = import_transactions(&pool, &account.id, Source::Amex, &both_visits)
             .await
             .unwrap();
@@ -1075,13 +1190,20 @@ mod tests {
     #[tokio::test]
     async fn a_later_statement_with_an_overlapping_date_only_imports_the_new_rows() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Neo, "Neo").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Neo, "Neo")
+            .await
+            .unwrap();
         let d1 = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
         let d2 = NaiveDate::from_ymd_opt(2026, 8, 2).unwrap();
 
-        import_transactions(&pool, &account.id, Source::Neo, &[parsed(d1, 10.0, "A"), parsed(d2, 20.0, "B")])
-            .await
-            .unwrap();
+        import_transactions(
+            &pool,
+            &account.id,
+            Source::Neo,
+            &[parsed(d1, 10.0, "A"), parsed(d2, 20.0, "B")],
+        )
+        .await
+        .unwrap();
 
         // A second statement covering an overlapping range plus one new day.
         let d3 = NaiveDate::from_ymd_opt(2026, 8, 3).unwrap();
@@ -1089,7 +1211,11 @@ mod tests {
             &pool,
             &account.id,
             Source::Neo,
-            &[parsed(d1, 10.0, "A"), parsed(d2, 20.0, "B"), parsed(d3, 30.0, "C")],
+            &[
+                parsed(d1, 10.0, "A"),
+                parsed(d2, 20.0, "B"),
+                parsed(d3, 30.0, "C"),
+            ],
         )
         .await
         .unwrap();
@@ -1101,10 +1227,14 @@ mod tests {
     #[tokio::test]
     async fn creates_a_manual_transaction() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Neo, "Neo").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Neo, "Neo")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 8, 11).unwrap();
 
-        let created = create_manual_transaction(&pool, &account.id, d, 42.5, "Cash tip", None).await.unwrap();
+        let created = create_manual_transaction(&pool, &account.id, d, 42.5, "Cash tip", None)
+            .await
+            .unwrap();
 
         assert_eq!(created.source, Source::Manual);
         assert_eq!(created.account_id, account.id);
@@ -1118,11 +1248,17 @@ mod tests {
     #[tokio::test]
     async fn manual_transactions_get_distinct_occurrences_when_they_collide() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Neo, "Neo").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Neo, "Neo")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 8, 11).unwrap();
 
-        let first = create_manual_transaction(&pool, &account.id, d, 4.50, "Coffee", None).await.unwrap();
-        let second = create_manual_transaction(&pool, &account.id, d, 4.50, "Coffee", None).await.unwrap();
+        let first = create_manual_transaction(&pool, &account.id, d, 4.50, "Coffee", None)
+            .await
+            .unwrap();
+        let second = create_manual_transaction(&pool, &account.id, d, 4.50, "Coffee", None)
+            .await
+            .unwrap();
 
         assert_eq!(first.occurrence, 0);
         assert_eq!(second.occurrence, 1);
@@ -1131,12 +1267,17 @@ mod tests {
     #[tokio::test]
     async fn get_returns_a_tag_enriched_transaction() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Amex, "Amex").await.unwrap();
-        let d = NaiveDate::from_ymd_opt(2026, 8, 7).unwrap();
-        let created = create_manual_transaction(&pool, &account.id, d, 15.99, "Membership fee", None)
+        let account = account::create_manual_account(&pool, Source::Amex, "Amex")
             .await
             .unwrap();
-        tag::tag_transaction(&pool, created.id.into(), "category", "FEES").await.unwrap();
+        let d = NaiveDate::from_ymd_opt(2026, 8, 7).unwrap();
+        let created =
+            create_manual_transaction(&pool, &account.id, d, 15.99, "Membership fee", None)
+                .await
+                .unwrap();
+        tag::tag_transaction(&pool, created.id.into(), "category", "FEES")
+            .await
+            .unwrap();
 
         let fetched = get(&pool, created.id.into()).await.unwrap().unwrap();
 
@@ -1144,7 +1285,10 @@ mod tests {
         assert_eq!(fetched.source, Source::Manual);
         assert_eq!(
             fetched.tags,
-            vec![TagValue { name: "category".into(), value: "FEES".into() }]
+            vec![TagValue {
+                name: "category".into(),
+                value: "FEES".into()
+            }]
         );
     }
 
@@ -1157,10 +1301,14 @@ mod tests {
     #[tokio::test]
     async fn create_manual_transaction_links_a_merchant() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Amex, "Amex").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Amex, "Amex")
+            .await
+            .unwrap();
         let d = NaiveDate::from_ymd_opt(2026, 8, 7).unwrap();
 
-        let created = create_manual_transaction(&pool, &account.id, d, 15.99, "Starbucks", None).await.unwrap();
+        let created = create_manual_transaction(&pool, &account.id, d, 15.99, "Starbucks", None)
+            .await
+            .unwrap();
 
         assert_eq!(created.merchant_name.as_deref(), Some("Starbucks"));
         let merchant_id = created.merchant_id.expect("merchant should be linked");
@@ -1176,7 +1324,9 @@ mod tests {
     #[tokio::test]
     async fn create_manual_transaction_links_an_explicitly_chosen_merchant() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Amex, "Amex").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Amex, "Amex")
+            .await
+            .unwrap();
         let merchant = crate::repo::merchant::upsert_merchant(&pool, "Starbucks", None)
             .await
             .unwrap();
@@ -1188,10 +1338,16 @@ mod tests {
         // The free-text description differs from the merchant's name — an
         // explicit `merchant_id` should still link to the chosen merchant
         // rather than creating a new one named after the description.
-        let created =
-            create_manual_transaction(&pool, &account.id, d, 6.25, "Coffee run", Some(merchant.id.into()))
-                .await
-                .unwrap();
+        let created = create_manual_transaction(
+            &pool,
+            &account.id,
+            d,
+            6.25,
+            "Coffee run",
+            Some(merchant.id.into()),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(created.merchant_id, Some(merchant.id));
         let merchant_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM merchants")
@@ -1203,19 +1359,29 @@ mod tests {
         let fetched = get(&pool, created.id.into()).await.unwrap().unwrap();
         assert_eq!(
             fetched.tags,
-            vec![TagValue { name: "category".into(), value: "FOOD_AND_DRINK".into() }]
+            vec![TagValue {
+                name: "category".into(),
+                value: "FOOD_AND_DRINK".into()
+            }]
         );
     }
 
     #[tokio::test]
     async fn import_transactions_links_a_merchant_per_row() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Neo, "Neo").await.unwrap();
-        let d = NaiveDate::from_ymd_opt(2026, 8, 11).unwrap();
-
-        import_transactions(&pool, &account.id, Source::Neo, &[parsed(d, 26.35, "REAL CDN LIQUOR")])
+        let account = account::create_manual_account(&pool, Source::Neo, "Neo")
             .await
             .unwrap();
+        let d = NaiveDate::from_ymd_opt(2026, 8, 11).unwrap();
+
+        import_transactions(
+            &pool,
+            &account.id,
+            Source::Neo,
+            &[parsed(d, 26.35, "REAL CDN LIQUOR")],
+        )
+        .await
+        .unwrap();
 
         let (merchant_name, merchant_id): (Option<String>, Option<DbUuid>) = sqlx::query_as(
             "SELECT merchant_name, merchant_id FROM transactions WHERE account_id = ?1",
@@ -1232,21 +1398,35 @@ mod tests {
     #[tokio::test]
     async fn reimporting_the_same_merchant_reuses_the_existing_row_not_a_duplicate() {
         let pool = pool().await;
-        let account = account::create_manual_account(&pool, Source::Neo, "Neo").await.unwrap();
+        let account = account::create_manual_account(&pool, Source::Neo, "Neo")
+            .await
+            .unwrap();
         let d1 = NaiveDate::from_ymd_opt(2026, 8, 11).unwrap();
         let d2 = NaiveDate::from_ymd_opt(2026, 8, 12).unwrap();
 
-        import_transactions(&pool, &account.id, Source::Neo, &[parsed(d1, 26.35, "REAL CDN LIQUOR")])
-            .await
-            .unwrap();
-        import_transactions(&pool, &account.id, Source::Neo, &[parsed(d2, 9.99, "REAL CDN LIQUOR")])
-            .await
-            .unwrap();
+        import_transactions(
+            &pool,
+            &account.id,
+            Source::Neo,
+            &[parsed(d1, 26.35, "REAL CDN LIQUOR")],
+        )
+        .await
+        .unwrap();
+        import_transactions(
+            &pool,
+            &account.id,
+            Source::Neo,
+            &[parsed(d2, 9.99, "REAL CDN LIQUOR")],
+        )
+        .await
+        .unwrap();
 
-        let merchant_count = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM merchants WHERE name = 'REAL CDN LIQUOR'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        let merchant_count = sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM merchants WHERE name = 'REAL CDN LIQUOR'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(merchant_count, 1);
     }
 }

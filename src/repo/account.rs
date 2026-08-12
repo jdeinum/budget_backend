@@ -72,7 +72,11 @@ pub async fn upsert_account(
 /// `routes::accounts::importer_for`) and must be `Source::Neo` or
 /// `Source::Amex`; the caller (the route) is responsible for rejecting
 /// anything else.
-pub async fn create_manual_account(pool: &SqlitePool, source: Source, name: &str) -> sqlx::Result<Account> {
+pub async fn create_manual_account(
+    pool: &SqlitePool,
+    source: Source,
+    name: &str,
+) -> sqlx::Result<Account> {
     let now = Utc::now();
     sqlx::query_as::<_, Account>(
         r#"
@@ -103,10 +107,11 @@ pub async fn create_manual_account(pool: &SqlitePool, source: Source, name: &str
 pub async fn delete_account(pool: &SqlitePool, id: &str) -> sqlx::Result<bool> {
     let mut tx = pool.begin().await?;
 
-    let target: Option<(String,)> = sqlx::query_as("SELECT id FROM accounts WHERE id = ?1 AND source != 'plaid'")
-        .bind(id)
-        .fetch_optional(&mut *tx)
-        .await?;
+    let target: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM accounts WHERE id = ?1 AND source != 'plaid'")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
     if target.is_none() {
         return Ok(false);
     }
@@ -137,7 +142,10 @@ pub async fn list_accounts(pool: &SqlitePool) -> sqlx::Result<Vec<Account>> {
         tags_by_account
             .entry(row.account_id)
             .or_default()
-            .push(TagValue { name: row.name, value: row.value });
+            .push(TagValue {
+                name: row.name,
+                value: row.value,
+            });
     }
     for a in &mut accounts {
         a.tags = tags_by_account.remove(&a.id).unwrap_or_default();
@@ -153,13 +161,19 @@ pub async fn get_account(pool: &SqlitePool, id: &str) -> sqlx::Result<Option<Acc
         .await
 }
 
-pub async fn rename_account(pool: &SqlitePool, id: &str, name: &str) -> sqlx::Result<Option<Account>> {
-    sqlx::query_as::<_, Account>("UPDATE accounts SET name = ?1, updated_at = ?2 WHERE id = ?3 RETURNING *")
-        .bind(name)
-        .bind(Utc::now())
-        .bind(id)
-        .fetch_optional(pool)
-        .await
+pub async fn rename_account(
+    pool: &SqlitePool,
+    id: &str,
+    name: &str,
+) -> sqlx::Result<Option<Account>> {
+    sqlx::query_as::<_, Account>(
+        "UPDATE accounts SET name = ?1, updated_at = ?2 WHERE id = ?3 RETURNING *",
+    )
+    .bind(name)
+    .bind(Utc::now())
+    .bind(id)
+    .fetch_optional(pool)
+    .await
 }
 
 #[cfg(test)]
@@ -225,7 +239,10 @@ mod tests {
         upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
             .await
             .unwrap();
-        let renamed = rename_account(&pool, "acc_123", "Checking").await.unwrap().unwrap();
+        let renamed = rename_account(&pool, "acc_123", "Checking")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(renamed.name, "Checking");
 
         // A re-sync upserts again — this must NOT clobber the rename, even
@@ -239,7 +256,9 @@ mod tests {
     #[tokio::test]
     async fn renaming_a_nonexistent_account_returns_none() {
         let pool = pool().await;
-        let result = rename_account(&pool, "does-not-exist", "New Name").await.unwrap();
+        let result = rename_account(&pool, "does-not-exist", "New Name")
+            .await
+            .unwrap();
         assert!(result.is_none());
     }
 
@@ -252,20 +271,27 @@ mod tests {
         upsert_account(&pool, "acc_123", item.id.into(), "Plaid Checking")
             .await
             .unwrap();
-        tag::tag_account(&pool, "acc_123", "type", "checking").await.unwrap();
+        tag::tag_account(&pool, "acc_123", "type", "checking")
+            .await
+            .unwrap();
 
         let accounts = list_accounts(&pool).await.unwrap();
         assert_eq!(accounts.len(), 1);
         assert_eq!(
             accounts[0].tags,
-            vec![TagValue { name: "type".into(), value: "checking".into() }]
+            vec![TagValue {
+                name: "type".into(),
+                value: "checking".into()
+            }]
         );
     }
 
     #[tokio::test]
     async fn creates_a_manual_account_with_no_item() {
         let pool = pool().await;
-        let account = create_manual_account(&pool, Source::Neo, "Neo Mastercard").await.unwrap();
+        let account = create_manual_account(&pool, Source::Neo, "Neo Mastercard")
+            .await
+            .unwrap();
 
         assert_eq!(account.name, "Neo Mastercard");
         assert_eq!(account.source, Source::Neo);
@@ -275,7 +301,9 @@ mod tests {
     #[tokio::test]
     async fn deletes_a_manual_account_and_its_transactions() {
         let pool = pool().await;
-        let account = create_manual_account(&pool, Source::Amex, "Amex").await.unwrap();
+        let account = create_manual_account(&pool, Source::Amex, "Amex")
+            .await
+            .unwrap();
         crate::repo::transaction::import_transactions(
             &pool,
             &account.id,

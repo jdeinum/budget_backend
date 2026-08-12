@@ -1,0 +1,8 @@
+target/
+data/
+.env
+.git/
+.github/
+*.md
+tests/
+justfile

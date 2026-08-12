@@ -21,14 +21,23 @@ pub fn router() -> Router<AppState> {
         .route("/accounts/{id}", delete(accounts::delete_account))
         .route("/accounts/{id}/rename", post(accounts::rename_account))
         .route("/accounts/{id}/tags", post(accounts::tag_account))
-        .route("/accounts/{id}/tags/{name}", delete(accounts::untag_account))
-        .route("/accounts/{id}/statements", post(accounts::upload_statements))
+        .route(
+            "/accounts/{id}/tags/{name}",
+            delete(accounts::untag_account),
+        )
+        .route(
+            "/accounts/{id}/statements",
+            post(accounts::upload_statements),
+        )
         .route("/plaid/link-token", post(plaid::create_link_token))
         .route(
             "/plaid/sandbox/public-token",
             post(plaid::sandbox_public_token),
         )
-        .route("/plaid/items", post(plaid::create_item).get(plaid::list_items))
+        .route(
+            "/plaid/items",
+            post(plaid::create_item).get(plaid::list_items),
+        )
         .route("/plaid/items/{id}", delete(plaid::delete_item))
         .route("/plaid/items/sync", post(plaid::sync_all_items))
         .route("/plaid/items/{id}/sync", post(plaid::sync_item))
@@ -61,7 +70,8 @@ pub fn router() -> Router<AppState> {
         .route("/tags", get(tags::list_tags).post(tags::create_tag))
         .route(
             "/transaction-rules",
-            get(transaction_rules::list_transaction_rules).post(transaction_rules::create_transaction_rule),
+            get(transaction_rules::list_transaction_rules)
+                .post(transaction_rules::create_transaction_rule),
         )
         .route(
             "/transaction-rules/{id}",

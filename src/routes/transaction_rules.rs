@@ -63,7 +63,8 @@ pub async fn create_transaction_rule(
             }
             if req.source_account_id == req.target_account_id {
                 return Err(AppError::BadRequest(
-                    "transfer rules require source_account_id and target_account_id to differ".into(),
+                    "transfer rules require source_account_id and target_account_id to differ"
+                        .into(),
                 ));
             }
         }

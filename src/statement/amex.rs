@@ -40,17 +40,33 @@ impl super::StatementImporter for AmexImporter {
 
             let date =
                 NaiveDate::parse_from_str(&row.date_processed, DATE_FORMAT).map_err(|source| {
-                    ImportError::InvalidDate { row: i + 1, value: row.date_processed.clone(), source }
+                    ImportError::InvalidDate {
+                        row: i + 1,
+                        value: row.date_processed.clone(),
+                        source,
+                    }
                 })?;
-            let amount: f64 = row.amount.parse().map_err(|source| ImportError::InvalidAmount {
-                row: i + 1,
-                value: row.amount.clone(),
-                source,
-            })?;
+            let amount: f64 = row
+                .amount
+                .parse()
+                .map_err(|source| ImportError::InvalidAmount {
+                    row: i + 1,
+                    value: row.amount.clone(),
+                    source,
+                })?;
 
             let description = normalize_description(&row.description);
-            let merchant = row.merchant.as_deref().map(normalize_description).unwrap_or_else(|| description.clone());
-            out.push(ParsedTransaction { date, amount, description, merchant });
+            let merchant = row
+                .merchant
+                .as_deref()
+                .map(normalize_description)
+                .unwrap_or_else(|| description.clone());
+            out.push(ParsedTransaction {
+                date,
+                amount,
+                description,
+                merchant,
+            });
         }
 
         Ok(out)
@@ -99,7 +115,10 @@ mod tests {
     #[test]
     fn amount_sign_already_matches_plaids_convention() {
         let rows = AmexImporter.parse(SAMPLE.as_bytes()).unwrap();
-        assert!(rows.iter().all(|r| r.amount > 0.0), "every row in the sample is a purchase");
+        assert!(
+            rows.iter().all(|r| r.amount > 0.0),
+            "every row in the sample is a purchase"
+        );
     }
 
     #[test]
@@ -110,8 +129,8 @@ mod tests {
 
     #[test]
     fn detects_own_header() {
-        let mut reader =
-            csv::ReaderBuilder::new().from_reader("Date,Date Processed,Description,Amount\n".as_bytes());
+        let mut reader = csv::ReaderBuilder::new()
+            .from_reader("Date,Date Processed,Description,Amount\n".as_bytes());
         assert!(AmexImporter.detect(reader.headers().unwrap()));
     }
 

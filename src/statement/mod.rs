@@ -73,7 +73,9 @@ fn normalize_description(raw: &str) -> String {
 /// actually reads are present, not that the header matches some exact
 /// snapshot of it.
 fn header_contains_all(header: &csv::StringRecord, required: &[&str]) -> bool {
-    required.iter().all(|&col| header.iter().any(|actual| actual == col))
+    required
+        .iter()
+        .all(|&col| header.iter().any(|actual| actual == col))
 }
 
 #[cfg(test)]

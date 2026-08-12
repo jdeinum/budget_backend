@@ -101,7 +101,9 @@ mod tests {
         let item = upsert_item(&pool, "plaid_item_1", "access-token", None)
             .await
             .unwrap();
-        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1").await.unwrap();
+        account::upsert_account(&pool, "acc_1", item.id.into(), "acc_1")
+            .await
+            .unwrap();
 
         let tx = PlaidTransaction {
             transaction_id: "tx_1".to_string(),
@@ -121,7 +123,9 @@ mod tests {
         let transaction_id = transaction::upsert_transaction(&pool, item.id.into(), None, &tx)
             .await
             .unwrap();
-        tag::tag_transaction(&pool, transaction_id, "category", "TEST").await.unwrap();
+        tag::tag_transaction(&pool, transaction_id, "category", "TEST")
+            .await
+            .unwrap();
 
         let existed = delete_item(&pool, item.id.into()).await.unwrap();
         assert!(existed);
@@ -134,10 +138,11 @@ mod tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        let transaction_tags = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM transaction_tags")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        let transaction_tags =
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM transaction_tags")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(accounts, 0);
         assert_eq!(transactions, 0);
         assert_eq!(transaction_tags, 0);

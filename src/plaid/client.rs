@@ -113,7 +113,9 @@ impl PlaidClient {
         let result = self
             .post::<_, ItemRemoveResponse>(
                 "/item/remove",
-                ItemRemoveRequest { access_token: access_token.to_string() },
+                ItemRemoveRequest {
+                    access_token: access_token.to_string(),
+                },
             )
             .await;
 

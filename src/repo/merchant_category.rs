@@ -16,7 +16,10 @@ pub struct MerchantCategory {
 }
 
 /// The open (effective_to IS NULL) category period for a merchant, if any.
-pub async fn get_current(pool: &SqlitePool, merchant_id: Uuid) -> sqlx::Result<Option<MerchantCategory>> {
+pub async fn get_current(
+    pool: &SqlitePool,
+    merchant_id: Uuid,
+) -> sqlx::Result<Option<MerchantCategory>> {
     sqlx::query_as::<_, MerchantCategory>(
         "SELECT * FROM merchant_categories WHERE merchant_id = ?1 AND effective_to IS NULL",
     )
@@ -25,7 +28,11 @@ pub async fn get_current(pool: &SqlitePool, merchant_id: Uuid) -> sqlx::Result<O
     .await
 }
 
-pub async fn close_current(pool: &SqlitePool, id: Uuid, effective_to: NaiveDate) -> sqlx::Result<()> {
+pub async fn close_current(
+    pool: &SqlitePool,
+    id: Uuid,
+    effective_to: NaiveDate,
+) -> sqlx::Result<()> {
     sqlx::query("UPDATE merchant_categories SET effective_to = ?1 WHERE id = ?2")
         .bind(effective_to)
         .bind(DbUuid::from(id))
@@ -147,19 +154,37 @@ mod tests {
         let d3 = NaiveDate::from_ymd_opt(2026, 3, 1).unwrap();
 
         // First observation opens a history row.
-        record_observation(&pool, m.id.into(), Some("FOOD_AND_DRINK"), Some("COFFEE"), d1)
-            .await
-            .unwrap();
+        record_observation(
+            &pool,
+            m.id.into(),
+            Some("FOOD_AND_DRINK"),
+            Some("COFFEE"),
+            d1,
+        )
+        .await
+        .unwrap();
         let history = list_for_merchant(&pool, m.id.into()).await.unwrap();
         assert_eq!(history.len(), 1);
-        assert_eq!(history[0].category_primary.as_deref(), Some("FOOD_AND_DRINK"));
+        assert_eq!(
+            history[0].category_primary.as_deref(),
+            Some("FOOD_AND_DRINK")
+        );
         assert_eq!(history[0].effective_to, None);
 
         // A repeat of the same category on a later date is a no-op.
-        record_observation(&pool, m.id.into(), Some("FOOD_AND_DRINK"), Some("COFFEE"), d2)
-            .await
-            .unwrap();
-        assert_eq!(list_for_merchant(&pool, m.id.into()).await.unwrap().len(), 1);
+        record_observation(
+            &pool,
+            m.id.into(),
+            Some("FOOD_AND_DRINK"),
+            Some("COFFEE"),
+            d2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            list_for_merchant(&pool, m.id.into()).await.unwrap().len(),
+            1
+        );
 
         // A different category on a later date closes the old row and opens a new one.
         record_observation(&pool, m.id.into(), Some("GENERAL_MERCHANDISE"), None, d3)
@@ -168,7 +193,10 @@ mod tests {
         let history = list_for_merchant(&pool, m.id.into()).await.unwrap();
         assert_eq!(history.len(), 2);
         let current = history.iter().find(|h| h.effective_to.is_none()).unwrap();
-        assert_eq!(current.category_primary.as_deref(), Some("GENERAL_MERCHANDISE"));
+        assert_eq!(
+            current.category_primary.as_deref(),
+            Some("GENERAL_MERCHANDISE")
+        );
         assert_eq!(current.effective_from, d3);
         let closed = history.iter().find(|h| h.effective_to.is_some()).unwrap();
         assert_eq!(closed.category_primary.as_deref(), Some("FOOD_AND_DRINK"));
@@ -179,6 +207,9 @@ mod tests {
         record_observation(&pool, m.id.into(), Some("TRANSPORTATION"), None, d1)
             .await
             .unwrap();
-        assert_eq!(list_for_merchant(&pool, m.id.into()).await.unwrap().len(), 2);
+        assert_eq!(
+            list_for_merchant(&pool, m.id.into()).await.unwrap().len(),
+            2
+        );
     }
 }

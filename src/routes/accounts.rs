@@ -130,7 +130,9 @@ pub async fn upload_statements(
     Path(id): Path<String>,
     mut multipart: Multipart,
 ) -> AppResult<Json<UploadStatementsResponse>> {
-    let account = account::get_account(&state.pool, &id).await?.ok_or(AppError::NotFound)?;
+    let account = account::get_account(&state.pool, &id)
+        .await?
+        .ok_or(AppError::NotFound)?;
     let importer = importer_for(account.source)?;
 
     let mut response = UploadStatementsResponse::default();
@@ -150,7 +152,10 @@ pub async fn upload_statements(
         let bytes = match field.bytes().await {
             Ok(bytes) => bytes,
             Err(err) => {
-                response.failed.push(FailedFile { filename, error: err.to_string() });
+                response.failed.push(FailedFile {
+                    filename,
+                    error: err.to_string(),
+                });
                 continue;
             }
         };

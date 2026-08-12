@@ -9,7 +9,9 @@ use crate::error::{AppError, AppResult};
 use crate::repo::account;
 use crate::repo::merchant;
 use crate::repo::tag::{self, TagValue};
-use crate::repo::transaction::{self, SortDir, SortField, TransactionCursor, TransactionWithMerchant};
+use crate::repo::transaction::{
+    self, SortDir, SortField, TransactionCursor, TransactionWithMerchant,
+};
 use crate::repo::transaction_rule;
 use crate::routes::tags::AttachTagRequest;
 use crate::state::AppState;
@@ -110,7 +112,9 @@ fn parse_tags(raw: &str) -> AppResult<Vec<(String, String)>> {
             pair.split_once(':')
                 .map(|(name, value)| (name.to_string(), value.to_string()))
                 .ok_or_else(|| {
-                    AppError::BadRequest(format!("invalid tag filter {pair:?}, expected name:value"))
+                    AppError::BadRequest(format!(
+                        "invalid tag filter {pair:?}, expected name:value"
+                    ))
                 })
         })
         .collect()
@@ -152,7 +156,12 @@ pub async fn list_transactions(
     State(state): State<AppState>,
     Query(query): Query<ListTransactionsQuery>,
 ) -> AppResult<Json<TransactionsPage>> {
-    let tags = query.tags.as_deref().map(parse_tags).transpose()?.unwrap_or_default();
+    let tags = query
+        .tags
+        .as_deref()
+        .map(parse_tags)
+        .transpose()?
+        .unwrap_or_default();
     let exclude_tags = query
         .exclude_tags
         .as_deref()
@@ -165,12 +174,12 @@ pub async fn list_transactions(
         .as_deref()
         .map(cursor::decode::<TransactionCursor>)
         .transpose()?;
-    if let Some(c) = &cursor {
-        if c.sort_field != sort_field || c.sort_dir != sort_dir {
-            return Err(AppError::BadRequest(
-                "cursor was minted under a different sort; drop it when changing sort".into(),
-            ));
-        }
+    if let Some(c) = &cursor
+        && (c.sort_field != sort_field || c.sort_dir != sort_dir)
+    {
+        return Err(AppError::BadRequest(
+            "cursor was minted under a different sort; drop it when changing sort".into(),
+        ));
     }
     let limit = query.limit.clamp(1, MAX_LIMIT);
     let q = query.q.as_deref().map(str::trim).filter(|s| !s.is_empty());

@@ -41,14 +41,22 @@ impl super::StatementImporter for NeoImporter {
                 continue;
             }
 
-            let date = NaiveDate::parse_from_str(&row.posted_date, DATE_FORMAT).map_err(|source| {
-                ImportError::InvalidDate { row: i + 1, value: row.posted_date.clone(), source }
-            })?;
-            let raw_amount: f64 = row.amount.parse().map_err(|source| ImportError::InvalidAmount {
-                row: i + 1,
-                value: row.amount.clone(),
-                source,
-            })?;
+            let date =
+                NaiveDate::parse_from_str(&row.posted_date, DATE_FORMAT).map_err(|source| {
+                    ImportError::InvalidDate {
+                        row: i + 1,
+                        value: row.posted_date.clone(),
+                        source,
+                    }
+                })?;
+            let raw_amount: f64 =
+                row.amount
+                    .parse()
+                    .map_err(|source| ImportError::InvalidAmount {
+                        row: i + 1,
+                        value: row.amount.clone(),
+                        source,
+                    })?;
 
             let description = normalize_description(&row.description);
             out.push(ParsedTransaction {
@@ -104,7 +112,10 @@ mod tests {
     fn negates_amount_to_match_plaids_convention() {
         let importer = NeoImporter;
         let rows = importer.parse(SAMPLE.as_bytes()).unwrap();
-        assert!(rows.iter().all(|r| r.amount > 0.0), "every row in the sample is a purchase");
+        assert!(
+            rows.iter().all(|r| r.amount > 0.0),
+            "every row in the sample is a purchase"
+        );
     }
 
     #[test]

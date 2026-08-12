@@ -1,0 +1,40 @@
+[advisories]
+unmaintained = "workspace"
+yanked = "deny"
+
+[licenses]
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "Unlicense",
+    # Mozilla CA root-cert dataset (webpki-roots); permissive LF data license.
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+# budget's own crate carries no license field; it's not published, so skip it.
+private = { ignore = true }
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[bans]
+# Regression guard: fail when a NEW crate gets pulled in at multiple versions.
+# The skip list below is every crate already duplicated today (upstream-driven,
+# not something we control directly). Prune entries as upstreams converge.
+multiple-versions = "deny"
+wildcards = "deny"
+skip = [
+    { crate = "base64" },
+    { crate = "getrandom" },
+    { crate = "hashbrown" },
+    { crate = "syn" },
+]

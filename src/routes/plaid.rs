@@ -89,13 +89,8 @@ pub async fn create_item(
 ) -> AppResult<Json<CreateItemResponse>> {
     let exchange = state.plaid.exchange_public_token(&req.public_token).await?;
 
-    let saved = item::upsert_item(
-        &state.pool,
-        &exchange.item_id,
-        &exchange.access_token,
-        None,
-    )
-    .await?;
+    let saved =
+        item::upsert_item(&state.pool, &exchange.item_id, &exchange.access_token, None).await?;
 
     let summary = sync::sync_item_transactions(&state.pool, &state.plaid, &saved).await?;
 
@@ -118,7 +113,9 @@ pub async fn delete_item(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AppResult<StatusCode> {
-    let saved = item::get_item(&state.pool, id).await?.ok_or(AppError::NotFound)?;
+    let saved = item::get_item(&state.pool, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
     state.plaid.remove_item(&saved.access_token).await?;
     item::delete_item(&state.pool, id).await?;
     Ok(StatusCode::NO_CONTENT)

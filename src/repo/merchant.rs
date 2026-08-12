@@ -43,7 +43,11 @@ pub async fn upsert_merchant(
 /// non-null `entity_id`, it can never match `idx_merchants_name_no_entity`'s
 /// `WHERE entity_id IS NULL`, so a chained-upsert attempt at the "backfill"
 /// step silently never triggers and inserts a duplicate row instead.
-async fn upsert_by_entity_id(pool: &SqlitePool, name: &str, entity_id: &str) -> sqlx::Result<Merchant> {
+async fn upsert_by_entity_id(
+    pool: &SqlitePool,
+    name: &str,
+    entity_id: &str,
+) -> sqlx::Result<Merchant> {
     let now = Utc::now();
     let mut tx = pool.begin().await?;
 
@@ -135,15 +139,17 @@ pub async fn list_paginated(
             .push_bind(fts5_query(q))
             .push(")");
     }
-    qb.push(" ORDER BY name ASC, id ASC LIMIT ").push_bind(limit + 1);
+    qb.push(" ORDER BY name ASC, id ASC LIMIT ")
+        .push_bind(limit + 1);
 
     let mut merchants: Vec<Merchant> = qb.build_query_as().fetch_all(pool).await?;
 
     let next_cursor = if merchants.len() as i64 > limit {
         merchants.truncate(limit as usize);
-        merchants
-            .last()
-            .map(|m| MerchantCursor { name: m.name.clone(), id: m.id.into() })
+        merchants.last().map(|m| MerchantCursor {
+            name: m.name.clone(),
+            id: m.id.into(),
+        })
     } else {
         None
     };
@@ -155,7 +161,10 @@ pub async fn list_paginated(
         tags_by_merchant
             .entry(row.merchant_id)
             .or_default()
-            .push(TagValue { name: row.name, value: row.value });
+            .push(TagValue {
+                name: row.name,
+                value: row.value,
+            });
     }
     for m in &mut merchants {
         m.tags = tags_by_merchant.remove(&m.id).unwrap_or_default();
