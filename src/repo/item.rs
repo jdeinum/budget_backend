@@ -118,7 +118,6 @@ mod tests {
             merchant_entity_id: None,
             pending: false,
             payment_channel: Some("online".to_string()),
-            personal_finance_category: None,
         };
         let transaction_id = transaction::upsert_transaction(&pool, item.id.into(), None, &tx)
             .await

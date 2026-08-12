@@ -90,13 +90,6 @@ pub struct PlaidTransaction {
     pub merchant_entity_id: Option<String>,
     pub pending: bool,
     pub payment_channel: Option<String>,
-    pub personal_finance_category: Option<PersonalFinanceCategory>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PersonalFinanceCategory {
-    pub primary: Option<String>,
-    pub detailed: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

@@ -607,7 +607,6 @@ mod tests {
             merchant_entity_id: None,
             pending: false,
             payment_channel: Some("online".to_string()),
-            personal_finance_category: None,
         }
     }
 

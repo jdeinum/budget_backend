@@ -5,9 +5,7 @@ use uuid::Uuid;
 use crate::error::AppResult;
 use crate::plaid::PlaidClient;
 use crate::plaid::models::PlaidTransaction;
-use crate::repo::{
-    account, item, item::Item, merchant, merchant_category, tag, transaction, transaction_rule,
-};
+use crate::repo::{account, item, item::Item, merchant, transaction, transaction_rule};
 
 #[derive(Debug, Default, Serialize)]
 pub struct SyncSummary {
@@ -57,9 +55,7 @@ pub async fn sync_item_transactions(
             )
             .await?;
             let merchant_id = resolve_merchant(pool, tx).await?;
-            let transaction_id =
-                transaction::upsert_transaction(pool, item.id.into(), merchant_id, tx).await?;
-            tag_category(pool, transaction_id, tx).await?;
+            transaction::upsert_transaction(pool, item.id.into(), merchant_id, tx).await?;
             summary.added += 1;
         }
         for tx in &page.modified {
@@ -71,9 +67,7 @@ pub async fn sync_item_transactions(
             )
             .await?;
             let merchant_id = resolve_merchant(pool, tx).await?;
-            let transaction_id =
-                transaction::upsert_transaction(pool, item.id.into(), merchant_id, tx).await?;
-            tag_category(pool, transaction_id, tx).await?;
+            transaction::upsert_transaction(pool, item.id.into(), merchant_id, tx).await?;
             summary.modified += 1;
         }
         for removed in &page.removed {
@@ -94,10 +88,10 @@ pub async fn sync_item_transactions(
     Ok(summary)
 }
 
-/// Upserts the transaction's merchant (by name) and records its observed
-/// category against that merchant's category history, so `merchant_categories`
-/// tracks how a merchant's category changes over time rather than just what
-/// each individual transaction happened to be tagged with.
+/// Upserts the transaction's merchant by name.
+///
+/// Plaid's `personal_finance_category` is intentionally ignored here — we
+/// don't tag transactions or track merchant category history from it.
 async fn resolve_merchant(pool: &SqlitePool, tx: &PlaidTransaction) -> AppResult<Option<Uuid>> {
     let Some(name) = tx.merchant_name.as_deref().or(tx.name.as_deref()) else {
         return Ok(None);
@@ -105,40 +99,5 @@ async fn resolve_merchant(pool: &SqlitePool, tx: &PlaidTransaction) -> AppResult
 
     let merchant = merchant::upsert_merchant(pool, name, tx.merchant_entity_id.as_deref()).await?;
 
-    let (category_primary, category_detailed) = tx
-        .personal_finance_category
-        .as_ref()
-        .map(|c| (c.primary.as_deref(), c.detailed.as_deref()))
-        .unwrap_or((None, None));
-
-    merchant_category::record_observation(
-        pool,
-        merchant.id.into(),
-        category_primary,
-        category_detailed,
-        tx.date,
-    )
-    .await?;
-
     Ok(Some(merchant.id.into()))
-}
-
-/// Records the transaction's own Plaid category as `category`/`category_detail`
-/// tags on it — this is the per-transaction observation, distinct from
-/// `merchant_categories`' longer-lived per-merchant history.
-async fn tag_category(
-    pool: &SqlitePool,
-    transaction_id: Uuid,
-    tx: &PlaidTransaction,
-) -> AppResult<()> {
-    let Some(category) = &tx.personal_finance_category else {
-        return Ok(());
-    };
-    if let Some(primary) = &category.primary {
-        tag::tag_transaction(pool, transaction_id, "category", primary).await?;
-    }
-    if let Some(detailed) = &category.detailed {
-        tag::tag_transaction(pool, transaction_id, "category_detail", detailed).await?;
-    }
-    Ok(())
 }
