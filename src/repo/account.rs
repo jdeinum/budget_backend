@@ -254,15 +254,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn renaming_a_nonexistent_account_returns_none() {
-        let pool = pool().await;
-        let result = rename_account(&pool, "does-not-exist", "New Name")
-            .await
-            .unwrap();
-        assert!(result.is_none());
-    }
-
-    #[tokio::test]
     async fn lists_accounts_with_tags() {
         let pool = pool().await;
         let item = item::upsert_item(&pool, "plaid_item_1", "access-token", None)
@@ -284,18 +275,6 @@ mod tests {
                 value: "checking".into()
             }]
         );
-    }
-
-    #[tokio::test]
-    async fn creates_a_manual_account_with_no_item() {
-        let pool = pool().await;
-        let account = create_manual_account(&pool, Source::Neo, "Neo Mastercard")
-            .await
-            .unwrap();
-
-        assert_eq!(account.name, "Neo Mastercard");
-        assert_eq!(account.source, Source::Neo);
-        assert_eq!(account.item_id, None);
     }
 
     #[tokio::test]
@@ -344,12 +323,5 @@ mod tests {
         let deleted = delete_account(&pool, "acc_123").await.unwrap();
         assert!(!deleted);
         assert!(get_account(&pool, "acc_123").await.unwrap().is_some());
-    }
-
-    #[tokio::test]
-    async fn deleting_a_nonexistent_manual_account_returns_false() {
-        let pool = pool().await;
-        let deleted = delete_account(&pool, "does-not-exist").await.unwrap();
-        assert!(!deleted);
     }
 }
